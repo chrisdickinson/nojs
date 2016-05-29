@@ -21,8 +21,10 @@ vars = {
   # If you do not know, use the full path while defining your new deps entry.
   'googlecode_url': 'http://%s.googlecode.com/svn',
   'chromium_git': 'https://chromium.googlesource.com',
-  'v8_revision': 'ad16e6c2cbd2c6b0f2e8ff944ac245561c682ac2',
-  'buildtools_revision': '14288a03a92856fe1fc296d39e6a25c2d83cd6cf',
+  'github_git': 'https://github.com',
+  'v8_revision': 'bec1e2f78e0e2a9519b3169c0b7242c2e4b9266f',
+  'libuv_revision': '91914247597dcc9d62e28e4cb89ad31c3ec962e9',
+  'buildtools_revision': '80b5126f91be4eb359248d28696746ef09d5be67',
 }
 
 # Only these hosts are allowed for dependencies in this DEPS file.
@@ -31,66 +33,71 @@ allowed_hosts = [
   'boringssl.googlesource.com',
   'pdfium.googlesource.com',
   'android.googlesource.com',
+  'github.com',
 ]
 
 deps = {
-  'src/buildtools':
+  'nojs/buildtools':
    Var('chromium_git') + '/chromium/buildtools.git' + '@' +  Var('buildtools_revision'),
 
-  'src/third_party/icu':
+  'nojs/third_party/icu':
    Var('chromium_git') + '/chromium/deps/icu.git' + '@' + 'e466f6ac8f60bb9697af4a91c6911c6fc4aec95f',
 
-  'src/tools/gyp':
+  'nojs/tools/gyp':
     Var('chromium_git') + '/external/gyp.git' + '@' + 'ed163ce233f76a950dce1751ac851dbe4b1c00cc',
 
-  'src/v8':
+  'nojs/third_party/v8':
     Var('chromium_git') + '/v8/v8.git' + '@' +  Var('v8_revision'),
 
-  'src/third_party/scons-2.0.1':
+  'nojs/third_party/scons-2.0.1':
    Var('chromium_git') + '/native_client/src/third_party/scons-2.0.1.git' + '@' + '1c1550e17fc26355d08627fbdec13d8291227067',
+
+  'nojs/third_party/libuv':
+   Var('github_git') + '/chrisdickinson/libuv.git' + '@' + Var('libuv_revision'),
+
 }
 
 deps_os = {
   'win': {
-    'src/third_party/cygwin':
+    'nojs/third_party/cygwin':
      Var('chromium_git') + '/chromium/deps/cygwin.git' + '@' + 'c89e446b273697fadf3a10ff1007a97c0b7de6df',
 
-    'src/third_party/psyco_win32':
+    'nojs/third_party/psyco_win32':
      Var('chromium_git') + '/chromium/deps/psyco_win32.git' + '@' + 'f5af9f6910ee5a8075bbaeed0591469f1661d868',
 
-    'src/third_party/bison':
+    'nojs/third_party/bison':
      Var('chromium_git') + '/chromium/deps/bison.git' + '@' + '083c9a45e4affdd5464ee2b224c2df649c6e26c3',
 
-    'src/third_party/gperf':
+    'nojs/third_party/gperf':
      Var('chromium_git') + '/chromium/deps/gperf.git' + '@' + 'd892d79f64f9449770443fb06da49b5a1e5d33c1',
 
-    'src/third_party/perl':
+    'nojs/third_party/perl':
      Var('chromium_git') + '/chromium/deps/perl.git' + '@' + 'ac0d98b5cee6c024b0cffeb4f8f45b6fc5ccdb78',
 
     # Parses Windows PE/COFF executable format.
-    'src/third_party/pefile':
+    'nojs/third_party/pefile':
      Var('chromium_git') + '/external/pefile.git' + '@' + '72c6ae42396cb913bcab63c15585dc3b5c3f92f1',
 
     # GNU binutils assembler for x86-32.
-    'src/third_party/gnu_binutils':
+    'nojs/third_party/gnu_binutils':
       Var('chromium_git') + '/native_client/deps/third_party/gnu_binutils.git' + '@' + 'f4003433b61b25666565690caf3d7a7a1a4ec436',
     # GNU binutils assembler for x86-64.
-    'src/third_party/mingw-w64/mingw/bin':
+    'nojs/third_party/mingw-w64/mingw/bin':
       Var('chromium_git') + '/native_client/deps/third_party/mingw-w64/mingw/bin.git' + '@' + '3cc8b140b883a9fe4986d12cfd46c16a093d3527',
   },
   'ios': {
     # Code that's not needed due to not building everything
-    'src/chrome/test/data/perf/canvas_bench': None,
-    'src/chrome/test/data/perf/frame_rate/content': None,
-    'src/native_client': None,
-    'src/third_party/ffmpeg': None,
-    'src/third_party/hunspell_dictionaries': None,
-    'src/third_party/webgl': None,
+    'nojs/chrome/test/data/perf/canvas_bench': None,
+    'nojs/chrome/test/data/perf/frame_rate/content': None,
+    'nojs/native_client': None,
+    'nojs/third_party/ffmpeg': None,
+    'nojs/third_party/hunspell_dictionaries': None,
+    'nojs/third_party/webgl': None,
   },
   'mac': {
   },
   'unix': {
-    'src/third_party/xdg-utils':
+    'nojs/third_party/xdg-utils':
      Var('chromium_git') + '/chromium/deps/xdg-utils.git' + '@' + 'd80274d5869b17b8c9067a1022e4416ee7ed5e0d',
   },
 }
@@ -128,24 +135,24 @@ hooks = [
     'pattern': '.',
     'action': [
         'python',
-        'src/build/landmines.py',
+        'nojs/build/landmines.py',
     ],
   },
   {
     # Update the Windows toolchain if necessary.
     'name': 'win_toolchain',
     'pattern': '.',
-    'action': ['python', 'src/build/vs_toolchain.py', 'update'],
+    'action': ['python', 'nojs/build/vs_toolchain.py', 'update'],
   },
   # Pull binutils for linux, enabled debug fission for faster linking /
   # debugging when used with clang on Ubuntu Precise.
   # https://code.google.com/p/chromium/issues/detail?id=352046
   {
     'name': 'binutils',
-    'pattern': 'src/third_party/binutils',
+    'pattern': 'nojs/third_party/binutils',
     'action': [
         'python',
-        'src/third_party/binutils/download.py',
+        'nojs/third_party/binutils/download.py',
     ],
   },
   {
@@ -153,7 +160,7 @@ hooks = [
     # Note: On Win, this should run after win_toolchain, as it may use it.
     'name': 'clang',
     'pattern': '.',
-    'action': ['python', 'src/tools/clang/scripts/update.py', '--if-needed'],
+    'action': ['python', 'nojs/tools/clang/scripts/update.py', '--if-needed'],
   },
   # Pull GN binaries. This needs to be before running GYP below.
   {
@@ -164,7 +171,7 @@ hooks = [
                 '--platform=win32',
                 '--no_auth',
                 '--bucket', 'chromium-gn',
-                '-s', 'src/buildtools/win/gn.exe.sha1',
+                '-s', 'nojs/buildtools/win/gn.exe.sha1',
     ],
   },
   {
@@ -175,7 +182,7 @@ hooks = [
                 '--platform=darwin',
                 '--no_auth',
                 '--bucket', 'chromium-gn',
-                '-s', 'src/buildtools/mac/gn.sha1',
+                '-s', 'nojs/buildtools/mac/gn.sha1',
     ],
   },
   {
@@ -186,7 +193,7 @@ hooks = [
                 '--platform=linux*',
                 '--no_auth',
                 '--bucket', 'chromium-gn',
-                '-s', 'src/buildtools/linux64/gn.sha1',
+                '-s', 'nojs/buildtools/linux64/gn.sha1',
     ],
   },
   # Pull clang-format binaries using checked-in hashes.
@@ -198,7 +205,7 @@ hooks = [
                 '--platform=win32',
                 '--no_auth',
                 '--bucket', 'chromium-clang-format',
-                '-s', 'src/buildtools/win/clang-format.exe.sha1',
+                '-s', 'nojs/buildtools/win/clang-format.exe.sha1',
     ],
   },
   {
@@ -209,7 +216,7 @@ hooks = [
                 '--platform=darwin',
                 '--no_auth',
                 '--bucket', 'chromium-clang-format',
-                '-s', 'src/buildtools/mac/clang-format.sha1',
+                '-s', 'nojs/buildtools/mac/clang-format.sha1',
     ],
   },
   {
@@ -220,7 +227,7 @@ hooks = [
                 '--platform=linux*',
                 '--no_auth',
                 '--bucket', 'chromium-clang-format',
-                '-s', 'src/buildtools/linux64/clang-format.sha1',
+                '-s', 'nojs/buildtools/linux64/clang-format.sha1',
     ],
   },
   # Pull the prebuilt libc++ static library for mac.
@@ -232,7 +239,7 @@ hooks = [
                 '--platform=darwin',
                 '--no_auth',
                 '--bucket', 'chromium-libcpp',
-                '-s', 'src/third_party/libc++-static/libc++.a.sha1',
+                '-s', 'nojs/third_party/libc++-static/libc++.a.sha1',
     ],
   },
   # Pull eu-strip binaries using checked-in hashes.
@@ -244,7 +251,7 @@ hooks = [
                 '--platform=linux*',
                 '--no_auth',
                 '--bucket', 'chromium-eu-strip',
-                '-s', 'src/build/linux/bin/eu-strip.sha1',
+                '-s', 'nojs/build/linux/bin/eu-strip.sha1',
     ],
   },
   {
@@ -256,20 +263,20 @@ hooks = [
     'pattern': '.',
     'action': [
         'python',
-        'src/tools/remove_stale_pyc_files.py',
-        'src/android_webview/tools',
-        'src/gpu/gles2_conform_support',
-        'src/infra',
-        'src/ppapi',
-        'src/printing',
-        'src/third_party/closure_compiler/build',
-        'src/tools',
+        'nojs/tools/remove_stale_pyc_files.py',
+        'nojs/android_webview/tools',
+        'nojs/gpu/gles2_conform_support',
+        'nojs/infra',
+        'nojs/ppapi',
+        'nojs/printing',
+        'nojs/third_party/closure_compiler/build',
+        'nojs/tools',
     ],
   },
   {
     # A change to a .gyp, .gypi, or to GYP itself should run the generator.
     'name': 'gyp',
     'pattern': '.',
-    'action': ['python', 'src/build/gyp_chromium'],
+    'action': ['python', 'nojs/build/gyp_chromium'],
   },
 ]
