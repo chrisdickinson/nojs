@@ -1,0 +1,65 @@
+# Copyright (c) 2013 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# This is the root build file for GN. GN will start processing by loading this
+# file, and recursively load all dependencies until all dependencies are either
+# resolved or known not to exist (which will cause the build to fail). So if
+# you add a new build file, there must be some path of dependencies from this
+# file to your new one or GN won't know about it.
+
+import("//build/config/ui.gni")
+if (is_android) {
+  import("//build/config/android/config.gni")
+}
+
+declare_args() {
+  # A list of extra dependencies to add to the root target. This allows a
+  # checkout to add additional targets without explicitly changing any checked-
+  # in files.
+  root_extra_deps = []
+}
+
+action("js2c") {
+  visibility = [":*"]
+  script = "tools/nojs_js2c.py"
+  sources = [
+    "lib/main.js"
+  ]
+  outputs = [
+    "$target_gen_dir/libraries.cc"
+  ]
+  args = [
+    rebase_path("$target_gen_dir/libraries.cc", root_build_dir),
+    "CORE",
+  ] + rebase_path(sources, root_build_dir)
+}
+
+executable("nojs") {
+  sources = [
+    "$target_gen_dir/libraries.cc",
+    "src/nojs_thread_context.cc",
+    "src/main.cc"
+  ]
+  deps = [
+    ":js2c",
+    "//third_party/libuv:libuv",
+    "//third_party/v8:v8",
+    "//third_party/v8:v8_libplatform"
+  ]
+}
+
+# In GN, a "group" is a dummy target that just lists other targets.
+group("root") {
+  # This should not be linked into production and depends on test targets.
+  testonly = true
+
+  # Note that some dependencies are commented out. These are things that are
+  # currently written but not hooked up to the build yet. They may need to be
+  # completed or possibly just tested and then re-enabled.
+  deps = [
+    "//third_party/v8:v8",
+    "//third_party/libuv:libuv",
+    ":nojs"
+  ] + root_extra_deps
+}
