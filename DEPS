@@ -273,10 +273,4 @@ hooks = [
         'nojs/tools',
     ],
   },
-  {
-    # A change to a .gyp, .gypi, or to GYP itself should run the generator.
-    'name': 'gyp',
-    'pattern': '.',
-    'action': ['python', 'nojs/build/gyp_chromium'],
-  },
 ]
