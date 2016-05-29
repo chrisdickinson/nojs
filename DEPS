@@ -48,9 +48,6 @@ deps = {
 
   'src/third_party/scons-2.0.1':
    Var('chromium_git') + '/native_client/src/third_party/scons-2.0.1.git' + '@' + '1c1550e17fc26355d08627fbdec13d8291227067',
-
-  'src/third_party/boringssl/src':
-   'https://boringssl.googlesource.com/boringssl.git' + '@' +  Var('boringssl_revision'),
 }
 
 deps_os = {
