@@ -147,14 +147,14 @@ hooks = [
   # Pull binutils for linux, enabled debug fission for faster linking /
   # debugging when used with clang on Ubuntu Precise.
   # https://code.google.com/p/chromium/issues/detail?id=352046
-  {
-    'name': 'binutils',
-    'pattern': 'nojs/third_party/binutils',
-    'action': [
-        'python',
-        'nojs/third_party/binutils/download.py',
-    ],
-  },
+  #{
+  #  'name': 'binutils',
+  #  'pattern': 'nojs/third_party/binutils',
+  #  'action': [
+  #      'python',
+  #      'nojs/third_party/binutils/download.py',
+  #  ],
+  #},
   {
     # Pull clang if needed or requested via GYP_DEFINES.
     # Note: On Win, this should run after win_toolchain, as it may use it.
