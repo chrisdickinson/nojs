@@ -3,7 +3,6 @@ depot_tools/
 .landmines
 buildtools/
 out/
-src/nojs_third_party.h
 third_party/icu/
 third_party/libc++-static/libc++.a
 third_party/libuv/
