@@ -6,7 +6,7 @@ import optparse
 
 directory = os.path.dirname(__file__)
 sys.path.append(
-    os.path.realpath(os.path.join(directory, '..', 'v8', 'tools'))
+    os.path.realpath(os.path.join(directory, '..', 'third_party', 'v8', 'tools'))
 )
 
 import js2c
