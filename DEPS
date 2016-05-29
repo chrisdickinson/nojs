@@ -55,6 +55,10 @@ deps = {
   'nojs/third_party/libuv':
    Var('github_git') + '/chrisdickinson/libuv.git' + '@' + Var('libuv_revision'),
 
+  # why, this sure seems noninvasive
+  "nojs/third_party/v8/base/trace_event/common":
+    Var("git_url") + "/chromium/src/base/trace_event/common.git" + "@" + "c8c8665c2deaf1cc749d9f8e153256d4f67bf1b8",
+
 }
 
 deps_os = {
