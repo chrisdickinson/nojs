@@ -1,2 +1,13 @@
 depot_tools/
 .gclient
+.landmines
+buildtools/
+out/
+src/nojs_third_party.h
+third_party/icu/
+third_party/libc++-static/libc++.a
+third_party/libuv/
+third_party/llvm-build/
+third_party/scons-2.0.1/
+third_party/v8/
+tools/gyp/
