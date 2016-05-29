@@ -16,6 +16,7 @@ using v8::String;
 using v8::Value;
 using v8::Function;
 using v8::Object;
+using v8::String;
 using v8::NewStringType;
 using v8::Null;
 
@@ -34,6 +35,79 @@ class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
 
 namespace NoJS {
 
+namespace i {
+
+void Print (const v8::FunctionCallbackInfo<Value>& info) {
+  Isolate* isolate(info.GetIsolate());
+  HandleScope scope(isolate);
+
+  v8::String::Utf8Value output(info[0]);
+
+  std::cout << *output << std::endl;
+}
+
+void InitializeBridgeObject (Isolate* isolate, Local<Context> context, Local<Object> bridge) {
+  HandleScope handle_scope(isolate);
+
+  Local<Object> sources = Object::New(isolate);
+  int natives_count = NativesCollection::GetBuiltinsCount();
+
+  for (int idx = 0; idx < natives_count; ++idx) {
+    std::vector<const char> name(NativesCollection::GetScriptName(idx));
+    std::vector<const char> src(NativesCollection::GetScriptSource(idx));
+    v8::Maybe<bool> success = sources->Set(context, String::NewFromUtf8(
+      isolate,
+      name.data(),
+      NewStringType::kNormal,
+      name.size()
+    ).ToLocalChecked(), String::NewFromUtf8(
+      isolate,
+      src.data(),
+      NewStringType::kNormal,
+      src.size()
+    ).ToLocalChecked());
+
+    if (!success.FromMaybe(false)) {
+      abort();
+    }
+  }
+
+  // bridge.sources = {}
+  {
+    v8::Maybe<bool> success = bridge->Set(context, String::NewFromUtf8(
+      isolate,
+      "sources",
+      NewStringType::kNormal
+    ).ToLocalChecked(), sources);
+
+    if (!success.FromMaybe(false)) {
+      abort();
+    }
+  }
+
+  v8::Local<v8::Function> function = v8::FunctionTemplate::New(
+    isolate,
+    Print,
+    Null(isolate),
+    v8::Local<v8::Signature>()
+  )->GetFunction();
+
+  // bridge.print = fn
+  {
+    v8::Maybe<bool> success = bridge->Set(context, String::NewFromUtf8(
+      isolate,
+      "print",
+      NewStringType::kNormal
+    ).ToLocalChecked(), function);
+
+    if (!success.FromMaybe(false)) {
+      abort();
+    }
+  }
+}
+
+}
+
 static std::list<ThreadContext*> threads;
 static ArrayBufferAllocator allocator;
 
@@ -42,12 +116,13 @@ ThreadContext::ThreadContext() :
   v8_isolate(nullptr) {
 }
 
+
 void ThreadContext::Initialize() {
   uv_loop = reinterpret_cast<uv_loop_t*>(malloc(sizeof(uv_loop_t)));
   uv_loop_init(uv_loop);
   uv_disable_stdio_inheritance();
 
-  v8::Isolate::CreateParams create_params;
+  Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = &allocator;
   v8_isolate = Isolate::New(create_params);
 }
@@ -81,6 +156,8 @@ void ThreadContext::Run() {
   Local<Value> args[] = {bridge};
   assert(result->IsFunction());
   Local<Function> bootstrap_function = Local<Function>::Cast(result);
+
+  i::InitializeBridgeObject(v8_isolate, context, bridge);
   bootstrap_function->Call(Null(v8_isolate), 1, args);
 
   uv_run(uv_loop, UV_RUN_DEFAULT);
