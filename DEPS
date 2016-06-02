@@ -23,9 +23,9 @@ vars = {
   'chromium_git': 'https://chromium.googlesource.com',
   'github_git': 'https://github.com',
   'v8_revision': 'bec1e2f78e0e2a9519b3169c0b7242c2e4b9266f',
-  'libuv_revision': '91914247597dcc9d62e28e4cb89ad31c3ec962e9',
+  'libuv_revision': '9189d241c1fa3c74ad940f06ab9afeb2a45eefea',
   'buildtools_revision': '80b5126f91be4eb359248d28696746ef09d5be67',
-  'uv_link_t_revision': 'de601b3bd18fd5cbe5c9fdefa6f8e7aa6fdc755c',
+  'uv_link_t_revision': '0b9f0ce8d3a44f231a5a77e29ab3a0bed8de6053',
 }
 
 # Only these hosts are allowed for dependencies in this DEPS file.
