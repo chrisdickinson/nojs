@@ -105,8 +105,6 @@ deps_os = {
   'mac': {
   },
   'unix': {
-    'nojs/third_party/xdg-utils':
-     Var('chromium_git') + '/chromium/deps/xdg-utils.git' + '@' + 'd80274d5869b17b8c9067a1022e4416ee7ed5e0d',
   },
 }
 
