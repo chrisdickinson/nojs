@@ -1,5 +1,6 @@
 #include <list>
 #include <iostream>
+#include <assert.h>
 
 #include "v8-debug.h"
 #include "v8-profiler.h"
@@ -53,8 +54,8 @@ void InitializeBridgeObject (Isolate* isolate, Local<Context> context, Local<Obj
   int natives_count = NativesCollection::GetBuiltinsCount();
 
   for (int idx = 0; idx < natives_count; ++idx) {
-    std::vector<const char> name(NativesCollection::GetScriptName(idx));
-    std::vector<const char> src(NativesCollection::GetScriptSource(idx));
+    std::string name(NativesCollection::GetScriptName(idx));
+    std::string src(NativesCollection::GetScriptSource(idx));
     v8::Maybe<bool> success = sources->Set(context, String::NewFromUtf8(
       isolate,
       name.data(),
@@ -134,9 +135,9 @@ void ThreadContext::Run() {
   Context::Scope context_scope(context);
 
   const int main_idx {NativesCollection::GetIndex("main")};
-  const std::vector<const char> main_source {NativesCollection::GetScriptSource(main_idx)};
+  const std::string main_source {NativesCollection::GetScriptSource(main_idx)};
 
-  const std::vector<const char> main_name {NativesCollection::GetScriptName(main_idx)};
+  const std::string main_name {NativesCollection::GetScriptName(main_idx)};
 
   Local<String> code = String::NewFromUtf8(
     v8_isolate,

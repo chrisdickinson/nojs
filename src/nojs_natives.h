@@ -1,6 +1,6 @@
 #ifndef NOJS_LIBRARIES_H
 #define NOJS_LIBRARIES_H
-#include <vector>
+#include <string>
 
 namespace NoJS {
 
@@ -10,9 +10,9 @@ class NativesCollection {
     static int GetDebuggerCount();
 
     static int GetIndex(const char* name);
-    static std::vector<const char> GetScriptSource(int index);
-    static std::vector<const char> GetScriptName(int index);
-    static std::vector<const char> GetScriptsSource();
+    static std::string GetScriptSource(int index);
+    static std::string GetScriptName(int index);
+    static std::string GetScriptsSource();
 };
 
 }

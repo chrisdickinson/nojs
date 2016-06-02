@@ -12,11 +12,11 @@ sys.path.append(
 import js2c
 
 js2c.GET_SCRIPT_SOURCE_CASE = """\
-    if (index == %(i)i) return std::vector<const char>(sources + %(offset)i, sources + %(offset)i + %(source_length)i);
+    if (index == %(i)i) return std::string(sources + %(offset)i, %(source_length)i);
 """
 
 js2c.GET_SCRIPT_NAME_CASE = """\
-    if (index == %(i)i) { const char* name {"%(name)s"}; return std::vector<const char>(name, name + %(length)i); }
+    if (index == %(i)i) { const char* name {"%(name)s"}; return std::string(name, %(length)i); }
 """
 
 js2c.HEADER_TEMPLATE = """\
@@ -24,7 +24,7 @@ js2c.HEADER_TEMPLATE = """\
 // want to make changes to this file you should either change the
 // javascript source files or the GYP script.
 #include "src/nojs_natives.h"
-#include <vector>
+#include <string>
 #include <cstring>
 
 namespace NoJS {
@@ -44,18 +44,18 @@ namespace NoJS {
     return -1;
   }
 
-  std::vector<const char> NativesCollection::GetScriptSource(int index) {
+  std::string NativesCollection::GetScriptSource(int index) {
 %(get_script_source_cases)s\
-    return std::vector<const char>();
+    return std::string();
   }
 
-  std::vector<const char> NativesCollection::GetScriptName(int index) {
+  std::string NativesCollection::GetScriptName(int index) {
 %(get_script_name_cases)s\
-    return std::vector<const char>();
+    return std::string();
   }
 
-  std::vector<const char> NativesCollection::GetScriptsSource() {
-    return std::vector<const char>(sources, sources + %(total_length)i);
+  std::string NativesCollection::GetScriptsSource() {
+    return std::string(sources, sources + %(total_length)i);
   }
 
 }
