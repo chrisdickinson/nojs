@@ -25,6 +25,7 @@ js2c.HEADER_TEMPLATE = """\
 // javascript source files or the GYP script.
 #include "src/nojs_natives.h"
 #include <vector>
+#include <cstring>
 
 namespace NoJS {
 
