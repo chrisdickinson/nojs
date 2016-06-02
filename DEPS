@@ -25,6 +25,7 @@ vars = {
   'v8_revision': 'bec1e2f78e0e2a9519b3169c0b7242c2e4b9266f',
   'libuv_revision': '91914247597dcc9d62e28e4cb89ad31c3ec962e9',
   'buildtools_revision': '80b5126f91be4eb359248d28696746ef09d5be67',
+  'uv_link_t_revision': 'de601b3bd18fd5cbe5c9fdefa6f8e7aa6fdc755c',
 }
 
 # Only these hosts are allowed for dependencies in this DEPS file.
@@ -54,6 +55,9 @@ deps = {
 
   'nojs/third_party/libuv':
    Var('github_git') + '/chrisdickinson/libuv.git' + '@' + Var('libuv_revision'),
+
+  'nojs/third_party/uv_link_t':
+   Var('github_git') + '/chrisdickinson/uv_link_t.git' + '@' + Var('uv_link_t_revision'),
 
   # why, this sure seems noninvasive
   'nojs/third_party/v8/base/trace_event/common':

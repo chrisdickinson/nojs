@@ -8,5 +8,6 @@ third_party/libc++-static/libc++.a
 third_party/libuv/
 third_party/llvm-build/
 third_party/scons-2.0.1/
+third_party/uv_link_t/
 third_party/v8/
 tools/gyp/

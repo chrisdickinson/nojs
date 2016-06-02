@@ -3,6 +3,7 @@
 #include "v8-platform.h"
 #include "v8_libplatform.h"
 #include "uv.h"
+#include "uv_link_t.h"
 
 #include "nojs_thread_context.h"
 

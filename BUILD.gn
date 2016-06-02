@@ -45,7 +45,8 @@ executable("nojs") {
     ":js2c",
     "//third_party/libuv:libuv",
     "//third_party/v8:v8",
-    "//third_party/v8:v8_libplatform"
+    "//third_party/v8:v8_libplatform",
+    "//third_party/uv_link_t:uv_link_t",
   ]
 }
 
