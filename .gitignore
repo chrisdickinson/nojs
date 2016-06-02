@@ -11,3 +11,5 @@ third_party/scons-2.0.1/
 third_party/uv_link_t/
 third_party/v8/
 tools/gyp/
+*.swp
+*.pyc
