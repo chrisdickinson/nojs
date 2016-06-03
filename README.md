@@ -2,6 +2,8 @@
 
 [Nothing to see here.](PLAN.md)
 
+Oh, there's [nothing to see here either.](https://github.com/chrisdickinson/nojs/issues/3)
+
 ## Hacking
 
 :one: [Install Google's `depot_tools`][depot-tools].
