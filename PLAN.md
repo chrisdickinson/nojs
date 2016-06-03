@@ -27,7 +27,7 @@ and something you *dislike* here:
 * Steer closer to (newer) Google tools:
   * Build with `gn` and `gclient`, keep deps up to date with `gclient sync`.
 * Focus on FFI. (Insert **so much :wave: handwaving :wave: here**)
-  * With an eye towards **@indutny**'s heap.js & mmap.js, explore exposing `mmap`
+  * With an eye towards **@indutny**'s jit.js, heap.js, & mmap.js, explore exposing `mmap`
     in order to create callable executable code from JS (possibly only for core
     functionality, but maybe not.)
   * Binary compat with Node later.
