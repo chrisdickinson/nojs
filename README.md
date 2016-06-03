@@ -1,6 +1,6 @@
 # nojs
 
-Nothing to see here.
+[Nothing to see here.](PLAN.md)
 
 ## Hacking
 
