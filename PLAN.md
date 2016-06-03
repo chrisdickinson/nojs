@@ -20,7 +20,7 @@ My (handwave-y) plans are — and you'll probably find something you *like*
 and something you *dislike* here:
 
 * Steer closer to TC39:
-  * The minimal API will use `Promise`. `async` is coming.
+  * The minimal API will use `Promise`. `async / await` is coming.
   * No streams at first. Possibly include streams from WHATWG's
     `ReadableStream` spec later.
   * No `EventEmitter` (except via backcompat.) Maybe someday `Observables`.
