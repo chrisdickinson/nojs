@@ -7,17 +7,16 @@ namespace NoJS {
 
 class ThreadContext;
 
-// Object<T>
+// Object
 // ============================================================
-// A tracked reference to a v8 value (type represented by `T`.)
-template <typename T>
+// A tracked reference to a v8 object.
 class Object {
   public:
-    inline Object(ThreadContext*, v8::Local<T> handle);
+    inline Object(ThreadContext*, v8::Local<v8::Object> handle);
     inline virtual ~Object();
 
-    inline v8::Local<T> GetJSObject();
-    inline v8::Persistent<T>& GetPersistent();
+    inline v8::Local<v8::Object> GetJSObject();
+    inline v8::Persistent<v8::Object>& GetPersistent();
     inline ThreadContext* GetThreadContext() const;
 
 
@@ -30,10 +29,9 @@ class Object {
     template <typename Type>
     static inline void OnGCCallback(const v8::WeakCallbackInfo<Type>& data);
 
-    v8::Persistent<T> m_js_object;
+    v8::Persistent<v8::Object> m_js_object;
     ThreadContext* m_thread_context;
 };
-
 
 }
 

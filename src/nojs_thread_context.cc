@@ -7,6 +7,7 @@
 #include "uv.h"
 
 #include "nojs_thread_context.h"
+#include "nojs_thread_context_inl.h"
 #include "nojs_natives.h"
 
 using v8::Local;
@@ -171,10 +172,6 @@ void ThreadContext::Dispose() {
 
   m_loop = nullptr;
   m_isolate = nullptr;
-}
-
-Isolate* ThreadContext::GetIsolate() {
-  return m_isolate;
 }
 
 ThreadContext* ThreadContext::New() {
