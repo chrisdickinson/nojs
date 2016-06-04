@@ -6,6 +6,8 @@
 #include "uv_link_t.h"
 
 #include "nojs_thread_context.h"
+#include "nojs_object.h"
+#include "nojs_object_inl.h"
 
 v8::Platform* StartV8(int argc, const char** argv) {
   v8::V8::InitializeICU();
