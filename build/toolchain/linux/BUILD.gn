@@ -82,5 +82,4 @@ gcc_toolchain("mipsel") {
   toolchain_os = "linux"
   is_clang = false
   cc_wrapper = ""
-  use_goma = false
 }
