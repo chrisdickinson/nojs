@@ -3,12 +3,8 @@
 # found in the LICENSE file.
 
 import("//build/config/allocator.gni")
-import("//build/config/chrome_build.gni")
-import("//build/config/chromecast_build.gni")
 import("//build/config/crypto.gni")
-import("//build/config/features.gni")
 import("//build/config/sanitizers/sanitizers.gni")
-import("//build/config/ui.gni")
 import("//build/toolchain/goma.gni")
 
 # One common error that happens is that GYP-generated headers within gen/ get
@@ -61,94 +57,8 @@ config("feature_flags") {
   # TODO(brettw) this probably needs to be parameterized.
   defines = [
     "V8_DEPRECATION_WARNINGS",  # Don't use deprecated V8 APIs anywhere.
-    "CLD_VERSION=$cld_version",
+    "CLD_VERSION=2",
   ]
-  if (enable_mdns) {
-    defines += [ "ENABLE_MDNS=1" ]
-  }
-  if (enable_notifications) {
-    defines += [ "ENABLE_NOTIFICATIONS" ]
-  }
-  if (enable_pepper_cdms) {
-    # TODO(brettw) should probably be "=1"
-    defines += [ "ENABLE_PEPPER_CDMS" ]
-  }
-  if (enable_browser_cdms) {
-    # TODO(brettw) should probably be "=1"
-    defines += [ "ENABLE_BROWSER_CDMS" ]
-  }
-  if (enable_plugins) {
-    defines += [ "ENABLE_PLUGINS=1" ]
-  }
-  if (enable_pdf) {
-    defines += [ "ENABLE_PDF=1" ]
-  }
-  if (enable_basic_printing || enable_print_preview) {
-    # Convenience define for ENABLE_BASIC_PRINTING || ENABLE_PRINT_PREVIEW.
-    defines += [ "ENABLE_PRINTING=1" ]
-    if (enable_basic_printing) {
-      # Enable basic printing support and UI.
-      defines += [ "ENABLE_BASIC_PRINTING=1" ]
-    }
-    if (enable_print_preview) {
-      # Enable printing with print preview.
-      # Can be defined without ENABLE_BASIC_PRINTING.
-      defines += [ "ENABLE_PRINT_PREVIEW=1" ]
-    }
-  }
-  if (enable_spellcheck) {
-    defines += [ "ENABLE_SPELLCHECK=1" ]
-  }
-  if (use_browser_spellchecker) {
-    defines += [ "USE_BROWSER_SPELLCHECKER=1" ]
-  }
-  if (dcheck_always_on) {
-    defines += [ "DCHECK_ALWAYS_ON=1" ]
-  }
-  if (use_udev) {
-    # TODO(brettw) should probably be "=1".
-    defines += [ "USE_UDEV" ]
-  }
-  if (ui_compositor_image_transport) {
-    # TODO(brettw) should probably be "=1".
-    defines += [ "UI_COMPOSITOR_IMAGE_TRANSPORT" ]
-  }
-  if (use_ash) {
-    defines += [ "USE_ASH=1" ]
-  }
-  if (use_aura) {
-    defines += [ "USE_AURA=1" ]
-  }
-  if (use_pango) {
-    defines += [ "USE_PANGO=1" ]
-  }
-  if (use_cairo) {
-    defines += [ "USE_CAIRO=1" ]
-  }
-  if (use_clipboard_aurax11) {
-    defines += [ "USE_CLIPBOARD_AURAX11=1" ]
-  }
-  if (use_default_render_theme) {
-    defines += [ "USE_DEFAULT_RENDER_THEME=1" ]
-  }
-  if (use_glib) {
-    defines += [ "USE_GLIB=1" ]
-  }
-  if (use_openssl) {
-    defines += [ "USE_OPENSSL=1" ]
-  }
-  if (use_openssl_certs) {
-    defines += [ "USE_OPENSSL_CERTS=1" ]
-  }
-  if (use_nss_certs) {
-    defines += [ "USE_NSS_CERTS=1" ]
-  }
-  if (use_ozone) {
-    defines += [ "USE_OZONE=1" ]
-  }
-  if (use_x11) {
-    defines += [ "USE_X11=1" ]
-  }
   if (use_allocator != "tcmalloc") {
     defines += [ "NO_TCMALLOC" ]
   }
@@ -180,102 +90,12 @@ config("feature_flags") {
   if (is_ubsan || is_ubsan_vptr) {
     defines += [ "UNDEFINED_SANITIZER" ]
   }
-  if (enable_webrtc) {
-    defines += [ "ENABLE_WEBRTC=1" ]
-  }
-  if (!enable_nacl) {
-    defines += [ "DISABLE_NACL" ]
-  }
-  if (enable_extensions) {
-    defines += [ "ENABLE_EXTENSIONS=1" ]
-  }
-  if (enable_configuration_policy) {
-    defines += [ "ENABLE_CONFIGURATION_POLICY" ]
-  }
-  if (enable_task_manager) {
-    defines += [ "ENABLE_TASK_MANAGER=1" ]
-  }
-  if (enable_themes) {
-    defines += [ "ENABLE_THEMES=1" ]
-  }
-  if (enable_captive_portal_detection) {
-    defines += [ "ENABLE_CAPTIVE_PORTAL_DETECTION=1" ]
-  }
-  if (enable_session_service) {
-    defines += [ "ENABLE_SESSION_SERVICE=1" ]
-  }
-  if (enable_rlz) {
-    defines += [ "ENABLE_RLZ" ]
-  }
-  if (enable_plugin_installation) {
-    defines += [ "ENABLE_PLUGIN_INSTALLATION=1" ]
-  }
-  if (enable_app_list) {
-    defines += [ "ENABLE_APP_LIST=1" ]
-  }
-  if (enable_settings_app) {
-    defines += [ "ENABLE_SETTINGS_APP=1" ]
-  }
-  if (enable_supervised_users) {
-    defines += [ "ENABLE_SUPERVISED_USERS=1" ]
-  }
-  if (enable_service_discovery) {
-    defines += [ "ENABLE_SERVICE_DISCOVERY=1" ]
-  }
-  if (enable_autofill_dialog) {
-    defines += [ "ENABLE_AUTOFILL_DIALOG=1" ]
-  }
-  if (enable_image_loader_extension) {
-    defines += [ "IMAGE_LOADER_EXTENSION=1" ]
-  }
-  if (enable_topchrome_md) {
-    defines += [ "ENABLE_TOPCHROME_MD=1" ]
-  }
-  if (enable_wayland_server) {
-    defines += [ "ENABLE_WAYLAND_SERVER=1" ]
-  }
-  if (enable_wifi_display) {
-    defines += [ "ENABLE_WIFI_DISPLAY=1" ]
-  }
-  if (proprietary_codecs) {
-    defines += [ "USE_PROPRIETARY_CODECS" ]
-  }
-  if (enable_hangout_services_extension) {
-    defines += [ "ENABLE_HANGOUT_SERVICES_EXTENSION=1" ]
-  }
-  if (enable_video_hole) {
-    defines += [ "VIDEO_HOLE=1" ]
-  }
-  if (safe_browsing_mode == 1) {
-    defines += [ "FULL_SAFE_BROWSING" ]
-    defines += [ "SAFE_BROWSING_CSD" ]
-    defines += [ "SAFE_BROWSING_DB_LOCAL" ]
-  } else if (safe_browsing_mode == 2) {
-    defines += [ "SAFE_BROWSING_DB_REMOTE" ]
-  }
-  if (is_official_build) {
-    defines += [ "OFFICIAL_BUILD" ]
-  }
-  if (is_chrome_branded) {
-    defines += [ "GOOGLE_CHROME_BUILD" ]
-  } else {
-    defines += [ "CHROMIUM_BUILD" ]
-  }
-  if (enable_media_router) {
-    defines += [ "ENABLE_MEDIA_ROUTER=1" ]
-  }
-  if (enable_webvr) {
-    defines += [ "ENABLE_WEBVR" ]
-  }
   if (is_syzyasan) {
     defines += [
       "SYZYASAN",
       "MEMORY_TOOL_REPLACES_ALLOCATOR",
       "MEMORY_SANITIZER_INITIAL_SIZE",
     ]
-  }
-  if (!fieldtrial_testing_like_official_build && !is_chrome_branded) {
-    defines += [ "FIELDTRIAL_TESTING_ENABLED" ]
   }
 }
 
@@ -421,11 +241,6 @@ config("executable_config") {
     ]
   } else if (is_linux || is_android) {
     configs += [ "//build/config/gcc:executable_ldconfig" ]
-    if (is_android) {
-      configs += [ "//build/config/android:executable_config" ]
-    } else if (is_chromecast) {
-      configs += [ "//build/config/chromecast:executable_config" ]
-    }
   }
 }
 
@@ -439,8 +254,6 @@ config("shared_library_config") {
     configs += _windows_linker_configs
   } else if (is_mac) {
     configs += [ "//build/config/mac:mac_dynamic_flags" ]
-  } else if (is_chromecast) {
-    configs += [ "//build/config/chromecast:shared_library_config" ]
   }
 }
 

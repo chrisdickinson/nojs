@@ -480,11 +480,6 @@ if (is_posix) {
   ]
 }
 
-if (is_android) {
-  _native_compiler_configs +=
-      [ "//build/config/android:default_cygprofile_instrumentation" ]
-}
-
 if (is_clang && !is_nacl) {
   _native_compiler_configs += [
     "//build/config/clang:find_bad_constructs",
@@ -536,11 +531,6 @@ _shared_library_configs = _native_compiler_configs + [
                           ]
 if (is_win) {
   _shared_library_configs += _windows_linker_configs
-} else if (is_android) {
-  # Strip native JNI exports from shared libraries by default. Binaries that
-  # want this can remove this config.
-  _shared_library_configs +=
-      [ "//build/config/android:hide_native_jni_exports" ]
 }
 set_defaults("shared_library") {
   configs = _shared_library_configs
@@ -551,9 +541,6 @@ set_defaults("loadable_module") {
 if (is_component_build) {
   set_defaults("component") {
     configs = _shared_library_configs
-    if (is_android) {
-      configs -= [ "//build/config/android:hide_native_jni_exports" ]
-    }
   }
 }
 
