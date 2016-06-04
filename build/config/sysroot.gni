@@ -5,34 +5,17 @@
 # This header file defines the "sysroot" variable which is the absolute path
 # of the sysroot. If no sysroot applies, the variable will be an empty string.
 
-import("//build/config/chrome_build.gni")
+import("//build/config/nojs_build.gni")
 
 declare_args() {
   # The absolute path of the sysroot that is applied when compiling using
   # the target toolchain.
   target_sysroot = ""
-  use_sysroot = true
+  use_sysroot = false
 }
 
 if (current_toolchain == default_toolchain && target_sysroot != "") {
   sysroot = target_sysroot
-} else if (is_android) {
-  import("//build/config/android/config.gni")
-  if (current_cpu == "x86") {
-    sysroot = "$android_ndk_root/$x86_android_sysroot_subdir"
-  } else if (current_cpu == "arm") {
-    sysroot = "$android_ndk_root/$arm_android_sysroot_subdir"
-  } else if (current_cpu == "mipsel") {
-    sysroot = "$android_ndk_root/$mips_android_sysroot_subdir"
-  } else if (current_cpu == "x64") {
-    sysroot = "$android_ndk_root/$x86_64_android_sysroot_subdir"
-  } else if (current_cpu == "arm64") {
-    sysroot = "$android_ndk_root/$arm64_android_sysroot_subdir"
-  } else if (current_cpu == "mips64") {
-    sysroot = "$android_ndk_root/$mips64_android_sysroot_subdir"
-  } else {
-    sysroot = ""
-  }
 } else if (is_linux && !is_chromeos && use_sysroot) {
   # By default build against a sysroot image downloaded from Cloud Storage
   # during gclient runhooks.

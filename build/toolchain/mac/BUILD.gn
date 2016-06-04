@@ -6,19 +6,11 @@
 # some enhancements since the commands on Mac are slightly different than on
 # Linux.
 
-import("../goma.gni")
 import("//build/config/ios/ios_sdk.gni")
 
 assert(host_os == "mac")
 
-import("//build/toolchain/goma.gni")
 import("//build/toolchain/toolchain.gni")
-
-if (use_goma) {
-  goma_prefix = "$goma_dir/gomacc "
-} else {
-  goma_prefix = ""
-}
 
 # This will copy the gyp-mac-tool to the build directory. We pass in the source
 # file of the mac tool.
@@ -253,8 +245,8 @@ mac_toolchain("clang_arm") {
   toolchain_os = "mac"
   prefix = rebase_path("//third_party/llvm-build/Release+Asserts/bin",
                        root_build_dir)
-  cc = "${goma_prefix}$prefix/clang"
-  cxx = "${goma_prefix}$prefix/clang++"
+  cc = "$prefix/clang"
+  cxx = "$prefix/clang++"
   ld = cxx
   is_clang = true
 }
@@ -268,8 +260,8 @@ mac_toolchain("ios_clang_arm") {
   # shipped w/ XCode instead of the one pulled from upstream.
   prefix = rebase_path("//third_party/llvm-build/Release+Asserts/bin",
                        root_build_dir)
-  cc = "${goma_prefix}$prefix/clang"
-  cxx = "${goma_prefix}$prefix/clang++"
+  cc = "$prefix/clang"
+  cxx = "$prefix/clang++"
   ld = cxx
   is_clang = true
 }
@@ -277,8 +269,8 @@ mac_toolchain("ios_clang_arm") {
 mac_toolchain("arm") {
   toolchain_cpu = "arm"
   toolchain_os = "mac"
-  cc = "${goma_prefix}/gcc"
-  cxx = "${goma_prefix}/g++"
+  cc = "/gcc"
+  cxx = "/g++"
   ld = cxx
   is_clang = false
 }
@@ -288,8 +280,8 @@ mac_toolchain("clang_x64") {
   toolchain_os = "mac"
   prefix = rebase_path("//third_party/llvm-build/Release+Asserts/bin",
                        root_build_dir)
-  cc = "${goma_prefix}$prefix/clang"
-  cxx = "${goma_prefix}$prefix/clang++"
+  cc = "$prefix/clang"
+  cxx = "$prefix/clang++"
   ld = cxx
   is_clang = true
 }
@@ -297,8 +289,8 @@ mac_toolchain("clang_x64") {
 mac_toolchain("x64") {
   toolchain_cpu = "x64"
   toolchain_os = "mac"
-  cc = "${goma_prefix}/gcc"
-  cxx = "${goma_prefix}/g++"
+  cc = "/gcc"
+  cxx = "/g++"
   ld = cxx
   is_clang = false
 }

@@ -2,10 +2,8 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//build/config/android/config.gni")
-import("//build/config/chrome_build.gni")
+import("//build/config/nojs_build.gni")
 import("//build/config/compiler/compiler.gni")
-import("//build/config/nacl/config.gni")
 import("//build/toolchain/cc_wrapper.gni")
 
 if (current_cpu == "arm") {
@@ -23,10 +21,6 @@ declare_args() {
   # warnings with known toolchains. Allow overriding this e.g. for Chromium
   # builds on Linux that could use a different version of the compiler.
   treat_warnings_as_errors = true
-
-  # Normally, Android builds are lightly optimized, even for debug builds, to
-  # keep binary size down. Setting this flag to true disables such optimization
-  android_full_debug = false
 
   # Whether to use the binary binutils checked into third_party/binutils.
   # These are not multi-arch so cannot be used except on x86 and x86-64 (the
@@ -73,7 +67,7 @@ declare_args() {
 
   # Omit unwind support in official builds to save space.
   # We can use breakpad for these builds.
-  exclude_unwind_tables = is_chrome_branded && is_official_build
+  exclude_unwind_tables = is_official_build
 }
 
 # Apply the default logic for these values if they were not set explicitly.
@@ -126,13 +120,9 @@ config("compiler") {
   # smaller.
   if (is_win) {
     configs += [ "//build/config/win:compiler" ]
-  } else if (is_android) {
-    configs += [ "//build/config/android:compiler" ]
   } else if (is_linux) {
     configs += [ "//build/config/linux:compiler" ]
-  } else if (is_nacl) {
-    configs += [ "//build/config/nacl:compiler" ]
-  } else if (is_ios || is_mac) {
+  } else if (is_mac) {
     configs += [ "//build/config/mac:compiler" ]
   }
 
@@ -162,7 +152,7 @@ config("compiler") {
     # Stack protection.
     if (is_mac) {
       cflags += [ "-fstack-protector-all" ]
-    } else if (is_posix && !is_chromeos && !is_nacl) {
+    } else if (is_posix) {
       # TODO(phajdan.jr): Use -fstack-protector-strong when our gcc supports it.
       cflags += [ "--param=ssp-buffer-size=4" ]
 
@@ -195,7 +185,7 @@ config("compiler") {
     ]
   }
 
-  if (is_clang && !is_nacl) {
+  if (is_clang) {
     # This is here so that all files get recompiled after a clang roll and
     # when turning clang on or off. (defines are passed via the command line,
     # and build system rebuild things when their commandline changes). Nothing
@@ -232,16 +222,14 @@ config("compiler") {
       ]
     }
 
-    if (!is_nacl) {
-      if (exclude_unwind_tables) {
-        cflags += [
-          "-fno-unwind-tables",
-          "-fno-asynchronous-unwind-tables",
-        ]
-        defines += [ "NO_UNWIND_TABLES" ]
-      } else {
-        cflags += [ "-funwind-tables" ]
-      }
+    if (exclude_unwind_tables) {
+      cflags += [
+        "-fno-unwind-tables",
+        "-fno-asynchronous-unwind-tables",
+      ]
+      defines += [ "NO_UNWIND_TABLES" ]
+    } else {
+      cflags += [ "-funwind-tables" ]
     }
   }
 
@@ -315,26 +303,20 @@ config("compiler") {
 
   # Makes builds independent of absolute file path.
   # clang-cl (used if is_win) doesn't expose this flag.
-  # Currently disabled for nacl since its toolchain lacks this flag (too old).
-  # TODO(zforman): Once nacl's toolchain is updated, remove check.
-  if (is_clang && !is_win && !is_nacl) {
+  if (is_clang && !is_win) {
     absolute_path = rebase_path("//.")
     cflags += [ "-fdebug-prefix-map=$absolute_path=." ]
   }
 
   # C++11 compiler flags setup.
   # ---------------------------
-  if (is_linux || is_android || (is_nacl && is_clang)) {
+  if (is_linux || is_android || is_clang) {
     # gnu++11 instead of c++11 is needed because some code uses typeof() (a
     # GNU extension).
     # TODO(thakis): Eventually switch this to c++11 instead,
     # http://crbug.com/427584
     cflags_cc += [ "-std=gnu++11" ]
-  } else if (!is_win && !is_nacl) {
-    # TODO(mcgrathr) - the NaCl GCC toolchain doesn't support either gnu++11
-    # or c++11; we technically don't need this toolchain any more, but there
-    # are still a few buildbots using it, so until those are turned off
-    # we need the !is_nacl clause and the (is_nacl && is_clang) clause, above.
+  } else if (!is_win) {
     cflags_cc += [ "-std=c++11" ]
   }
 
@@ -404,7 +386,7 @@ config("compiler_cpu_abi") {
       cflags += [ "-m32" ]
       ldflags += [ "-m32" ]
     } else if (current_cpu == "arm") {
-      if (is_clang && !is_android && !is_nacl) {
+      if (is_clang && !is_android) {
         cflags += [
           "-target",
           "arm-linux-gnueabihf",
@@ -414,17 +396,16 @@ config("compiler_cpu_abi") {
           "arm-linux-gnueabihf",
         ]
       }
-      if (!is_nacl) {
-        cflags += [
-          "-march=$arm_arch",
-          "-mfloat-abi=$arm_float_abi",
-        ]
-        if (arm_use_thumb) {
-          cflags += [ "-mthumb" ]
-          if (is_android && !is_clang) {
-            # Clang doesn't support this option.
-            cflags += [ "-mthumb-interwork" ]
-          }
+
+      cflags += [
+        "-march=$arm_arch",
+        "-mfloat-abi=$arm_float_abi",
+      ]
+      if (arm_use_thumb) {
+        cflags += [ "-mthumb" ]
+        if (is_android && !is_clang) {
+          # Clang doesn't support this option.
+          cflags += [ "-mthumb-interwork" ]
         }
       }
       if (arm_tune != "") {
@@ -542,32 +523,6 @@ config("compiler_cpu_abi") {
         ]
         ldflags += [ "-mips64r2" ]
       }
-    } else if (current_cpu == "pnacl" && is_nacl_nonsfi) {
-      if (target_cpu == "x86" || target_cpu == "x64") {
-        cflags += [
-          "-arch",
-          "x86-32-nonsfi",
-          "--pnacl-bias=x86-32-nonsfi",
-          "--target=i686-unknown-nacl",
-        ]
-        ldflags += [
-          "-arch",
-          "x86-32-nonsfi",
-          "--target=i686-unknown-nacl",
-        ]
-      } else if (target_cpu == "arm") {
-        cflags += [
-          "-arch",
-          "arm-nonsfi",
-          "--pnacl-bias=arm-nonsfi",
-          "--target=armv7-unknown-nacl-gnueabihf",
-        ]
-        ldflags += [
-          "-arch",
-          "arm-nonsfi",
-          "--target=armv7-unknown-nacl-gnueabihf",
-        ]
-      }
     }
   }
 
@@ -581,9 +536,7 @@ config("compiler_codegen") {
   configs = []
   cflags = []
 
-  if (is_nacl) {
-    configs += [ "//build/config/nacl:compiler_codegen" ]
-  } else if (is_posix && !is_mac && !is_ios) {
+  if (is_posix && !is_mac && !is_ios) {
     if (current_cpu == "x86") {
       if (is_clang) {
         cflags += [
@@ -629,7 +582,7 @@ config("clang_stackrealign") {
 }
 
 config("compiler_arm_fpu") {
-  if (current_cpu == "arm" && !is_ios && !is_nacl) {
+  if (current_cpu == "arm" && !is_ios) {
     cflags = [ "-mfpu=$arm_fpu" ]
     asmflags = cflags
   }
@@ -660,8 +613,6 @@ config("runtime_library") {
     configs += [ "//build/config/ios:runtime_library" ]
   } else if (is_mac) {
     configs += [ "//build/config/mac:runtime_library" ]
-  } else if (is_android) {
-    configs += [ "//build/config/android:runtime_library" ]
   }
 
   if (is_posix) {
@@ -810,7 +761,7 @@ config("default_warnings") {
       cflags += [ "-Werror" ]
     }
 
-    if (is_mac && !is_nacl) {
+    if (is_mac) {
       # When compiling Objective-C, warns if a method is used whose
       # availability is newer than the deployment target. This is not
       # required when compiling Chrome for iOS.
@@ -883,16 +834,10 @@ config("default_warnings") {
       "-Wno-inconsistent-missing-override",
     ]
 
-    # NaCl's Clang compiler and Chrome's hermetic Clang compiler will almost
-    # always have different versions. Certain flags may not be recognized by
-    # one version or the other.
-    if (!is_nacl) {
-      # Flags NaCl (Clang 3.7) does not recognize.
-      cflags += [
-        # TODO(thakis): Enable this, crbug.com/507717
-        "-Wno-shift-negative-value",
-      ]
-    }
+    cflags += [
+      # TODO(thakis): Enable this, crbug.com/507717
+      "-Wno-shift-negative-value",
+    ]
   }
 }
 
@@ -951,9 +896,7 @@ config("no_chromium_code") {
       "_CRT_NONSTDC_NO_WARNINGS",
       "_CRT_NONSTDC_NO_DEPRECATE",
     ]
-  } else if (is_clang && !is_nacl) {
-    # TODO(thakis): Remove !is_nacl once
-    # https://codereview.webrtc.org/1552863002/ made its way into chromium.
+  } else if (is_clang) {
     cflags += [ "-Wall" ]
   }
 
@@ -1162,25 +1105,6 @@ config("no_optimize") {
       "/Ob0",  # Disable all inlining (on by default).
       "/RTC1",  # Runtime checks for stack frame and uninitialized variables.
     ]
-  } else if (is_android && !android_full_debug) {
-    # On Android we kind of optimize some things that don't affect debugging
-    # much even when optimization is disabled to get the binary size down.
-    cflags = [
-      "-Os",
-      "-fdata-sections",
-      "-ffunction-sections",
-    ]
-
-    # We don't omit frame pointers on arm64 since they are required
-    # to correctly unwind stackframes which contain system library
-    # function frames (crbug.com/391706).
-    if (!using_sanitizer && target_cpu != "arm64") {
-      cflags += [ "-fomit-frame-pointer" ]
-    }
-
-    # Don't use gc-sections since it can cause links to succeed when they
-    # actually shouldn't. http://crbug.com/159847
-    ldflags = common_optimize_on_ldflags - [ "-Wl,--gc-sections" ]
   } else {
     cflags = [ "-O0" ]
     ldflags = []
@@ -1191,50 +1115,34 @@ config("no_optimize") {
 # optimization and link-time code generation which is very expensive and should
 # be used sparingly.
 config("optimize_max") {
-  if (is_nacl_irt) {
-    # The NaCl IRT is a special case and always wants its own config.
-    # Various components do:
-    #   if (!is_debug) {
-    #     configs -= [ "//build/config/compiler:default_optimization" ]
-    #     configs += [ "//build/config/compiler:optimize_max" ]
-    #   }
-    # So this config has to have the selection logic just like
-    # "default_optimization", below.
-    configs = [ "//build/config/nacl:irt_optimize" ]
-  } else {
-    ldflags = common_optimize_on_ldflags
-    if (is_win) {
-      # Favor speed over size, /O2 must be before the common flags. The GYP
-      # build also specifies /Ot, /Oi, and /GF, but these are implied by /O2.
-      cflags = [ "/O2" ] + common_optimize_on_cflags
-      if (is_official_build) {
-        # TODO(GYP): TODO(dpranke): Should these only be on in an official
-        # build, or on all the time? For now we'll require official build so
-        # that the compile is clean.
-        cflags += [
-          "/GL",  # Whole program optimization.
+  ldflags = common_optimize_on_ldflags
+  if (is_win) {
+    # Favor speed over size, /O2 must be before the common flags. The GYP
+    # build also specifies /Ot, /Oi, and /GF, but these are implied by /O2.
+    cflags = [ "/O2" ] + common_optimize_on_cflags
+    if (is_official_build) {
+      # TODO(GYP): TODO(dpranke): Should these only be on in an official
+      # build, or on all the time? For now we'll require official build so
+      # that the compile is clean.
+      cflags += [
+        "/GL",  # Whole program optimization.
 
-          # Disable Warning 4702 ("Unreachable code") for the WPO/PGO builds.
-          # Probably anything that this would catch that wouldn't be caught in a
-          # normal build isn't going to actually be a bug, so the incremental
-          # value of C4702 for PGO builds is likely very small.
-          "/wd4702",
-        ]
-      }
-    } else {
-      cflags = [ "-O2" ] + common_optimize_on_cflags
+        # Disable Warning 4702 ("Unreachable code") for the WPO/PGO builds.
+        # Probably anything that this would catch that wouldn't be caught in a
+        # normal build isn't going to actually be a bug, so the incremental
+        # value of C4702 for PGO builds is likely very small.
+        "/wd4702",
+      ]
     }
+  } else {
+    cflags = [ "-O2" ] + common_optimize_on_cflags
   }
 }
 
 # The default optimization applied to all targets. This will be equivalent to
 # either "optimize" or "no_optimize", depending on the build flags.
 config("default_optimization") {
-  if (is_nacl_irt) {
-    # The NaCl IRT is a special case and always wants its own config.
-    # It gets optimized the same way regardless of the type of build.
-    configs = [ "//build/config/nacl:irt_optimize" ]
-  } else if (is_debug) {
+  if (is_debug) {
     configs = [ ":no_optimize" ]
   } else {
     configs = [ ":optimize" ]
@@ -1255,12 +1163,7 @@ config("default_optimization") {
 # Full symbols.
 config("symbols") {
   if (is_win) {
-    import("//build/toolchain/goma.gni")
-    if (use_goma) {
-      cflags = [ "/Z7" ]  # No PDB file
-    } else {
-      cflags = [ "/Zi" ]  # Produce PDB file, no edit and continue.
-    }
+    cflags = [ "/Zi" ]  # Produce PDB file, no edit and continue.
     if (is_win_fastlink && visual_studio_version != "2013") {
       # Tell VS 2015+ to create a PDB that references debug
       # information in .obj and .lib files instead of copying
