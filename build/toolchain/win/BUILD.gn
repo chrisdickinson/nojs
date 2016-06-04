@@ -4,7 +4,6 @@
 
 import("//build/config/sanitizers/sanitizers.gni")
 import("//build/config/win/visual_studio_version.gni")
-import("//build/toolchain/goma.gni")
 import("//build/toolchain/toolchain.gni")
 
 # Should only be running on Windows.
@@ -17,12 +16,6 @@ assert(is_win)
 # list to us.
 gyp_win_tool_path =
     rebase_path("//tools/gyp/pylib/gyp/win_tool.py", root_build_dir)
-
-if (use_goma) {
-  goma_prefix = "$goma_dir/gomacc.exe "
-} else {
-  goma_prefix = ""
-}
 
 # This value will be inherited in the toolchain below.
 if (is_lto) {
@@ -262,7 +255,7 @@ if (target_cpu == "x86") {
   msvc_toolchain("x86") {
     environment = "environment.x86"
     toolchain_cpu = "x86"
-    cl = "${goma_prefix}\"${x86_toolchain_data.vc_bin_dir}/cl.exe\""
+    cl = "\"${x86_toolchain_data.vc_bin_dir}/cl.exe\""
     is_clang = false
   }
 
@@ -271,7 +264,7 @@ if (target_cpu == "x86") {
     toolchain_cpu = "x86"
     prefix = rebase_path("//third_party/llvm-build/Release+Asserts/bin",
                          root_build_dir)
-    cl = "${goma_prefix}$prefix/${clang_cl}"
+    cl = "$prefix/${clang_cl}"
     toolchain_os = "win"
     is_clang = true
   }
@@ -299,7 +292,7 @@ template("win_x64_toolchains") {
   msvc_toolchain(target_name) {
     environment = "environment.x64"
     toolchain_cpu = "x64"
-    cl = "${goma_prefix}\"${x64_toolchain_data.vc_bin_dir}/cl.exe\""
+    cl = "\"${x64_toolchain_data.vc_bin_dir}/cl.exe\""
     is_clang = false
 
     forward_variables_from(invoker, [ "is_component_build" ])
@@ -310,7 +303,7 @@ template("win_x64_toolchains") {
     toolchain_cpu = "x64"
     prefix = rebase_path("//third_party/llvm-build/Release+Asserts/bin",
                          root_build_dir)
-    cl = "${goma_prefix}$prefix/${clang_cl}"
+    cl = "$prefix/${clang_cl}"
     toolchain_os = "win"
     is_clang = true
 
@@ -351,7 +344,7 @@ if (target_os == "winrt_81" || target_os == "winrt_81_phone" ||
     target_os == "winrt_10") {
   msvc_toolchain("winrt_x86") {
     environment = "environment.winrt_x86"
-    cl = "${goma_prefix}\"${vc_bin_dir}/cl.exe\""
+    cl = "\"${vc_bin_dir}/cl.exe\""
     is_clang = false
 
     toolchain_cpu = "x86"
@@ -360,7 +353,7 @@ if (target_os == "winrt_81" || target_os == "winrt_81_phone" ||
 
   msvc_toolchain("winrt_x64") {
     environment = "environment.winrt_x64"
-    cl = "${goma_prefix}\"${vc_bin_dir}/cl.exe\""
+    cl = "\"${vc_bin_dir}/cl.exe\""
     is_clang = false
 
     toolchain_cpu = "x64"

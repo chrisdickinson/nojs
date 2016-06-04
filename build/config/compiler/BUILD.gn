@@ -22,10 +22,6 @@ declare_args() {
   # builds on Linux that could use a different version of the compiler.
   treat_warnings_as_errors = true
 
-  # Normally, Android builds are lightly optimized, even for debug builds, to
-  # keep binary size down. Setting this flag to true disables such optimization
-  android_full_debug = false
-
   # Whether to use the binary binutils checked into third_party/binutils.
   # These are not multi-arch so cannot be used except on x86 and x86-64 (the
   # only two architectures that are currently checked in). Turn this off when
@@ -1109,25 +1105,6 @@ config("no_optimize") {
       "/Ob0",  # Disable all inlining (on by default).
       "/RTC1",  # Runtime checks for stack frame and uninitialized variables.
     ]
-  } else if (is_android && !android_full_debug) {
-    # On Android we kind of optimize some things that don't affect debugging
-    # much even when optimization is disabled to get the binary size down.
-    cflags = [
-      "-Os",
-      "-fdata-sections",
-      "-ffunction-sections",
-    ]
-
-    # We don't omit frame pointers on arm64 since they are required
-    # to correctly unwind stackframes which contain system library
-    # function frames (crbug.com/391706).
-    if (!using_sanitizer && target_cpu != "arm64") {
-      cflags += [ "-fomit-frame-pointer" ]
-    }
-
-    # Don't use gc-sections since it can cause links to succeed when they
-    # actually shouldn't. http://crbug.com/159847
-    ldflags = common_optimize_on_ldflags - [ "-Wl,--gc-sections" ]
   } else {
     cflags = [ "-O0" ]
     ldflags = []
@@ -1186,12 +1163,7 @@ config("default_optimization") {
 # Full symbols.
 config("symbols") {
   if (is_win) {
-    import("//build/toolchain/goma.gni")
-    if (use_goma) {
-      cflags = [ "/Z7" ]  # No PDB file
-    } else {
-      cflags = [ "/Zi" ]  # Produce PDB file, no edit and continue.
-    }
+    cflags = [ "/Zi" ]  # Produce PDB file, no edit and continue.
     if (is_win_fastlink && visual_studio_version != "2013") {
       # Tell VS 2015+ to create a PDB that references debug
       # information in .obj and .lib files instead of copying

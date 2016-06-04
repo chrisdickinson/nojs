@@ -6,7 +6,6 @@ import("//build/config/nojs_build.gni")
 import("//build/config/allocator.gni")
 import("//build/config/crypto.gni")
 import("//build/config/sanitizers/sanitizers.gni")
-import("//build/toolchain/goma.gni")
 
 # One common error that happens is that GYP-generated headers within gen/ get
 # included rather than the GN-generated ones within gen/ subdirectories.
@@ -267,7 +266,7 @@ config("shared_library_config") {
 #
 # Recommend precompiled headers for targets with more than 50 .cc files.
 config("precompiled_headers") {
-  if (is_win && !is_official_build && !use_goma) {
+  if (is_win && !is_official_build) {
     # This is a string rather than a file GN knows about. It has to match
     # exactly what's in the /FI flag below, and what might appear in the source
     # code in quotes for an #include directive.
@@ -291,7 +290,7 @@ config("precompiled_headers") {
     # case but forgot the other one?). To reproduce this error, do a build,
     # then delete the precompile.c.obj file, then build again.
     cflags_c = [ "/wd4206" ]
-  } else if (is_mac && !is_official_build && !use_goma) {
+  } else if (is_mac && !is_official_build) {
     precompiled_header = "build/precompile.h"
     precompiled_source = "//build/precompile.h"
   }
