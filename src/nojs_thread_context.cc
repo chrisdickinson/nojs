@@ -113,25 +113,25 @@ static std::list<ThreadContext*> threads;
 static ArrayBufferAllocator allocator;
 
 ThreadContext::ThreadContext() :
-  uv_loop(nullptr),
-  v8_isolate(nullptr) {
+  m_loop(nullptr),
+  m_isolate(nullptr) {
 }
 
 
 void ThreadContext::Initialize() {
-  uv_loop = reinterpret_cast<uv_loop_t*>(malloc(sizeof(uv_loop_t)));
-  uv_loop_init(uv_loop);
+  m_loop = reinterpret_cast<uv_loop_t*>(malloc(sizeof(uv_loop_t)));
+  uv_loop_init(m_loop);
   uv_disable_stdio_inheritance();
 
   Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = &allocator;
-  v8_isolate = Isolate::New(create_params);
+  m_isolate = Isolate::New(create_params);
 }
 
 void ThreadContext::Run() {
-  Isolate::Scope isolate_scope(v8_isolate);
-  HandleScope handle_scope(v8_isolate);
-  Local<Context> context = Context::New(v8_isolate);
+  Isolate::Scope isolate_scope(m_isolate);
+  HandleScope handle_scope(m_isolate);
+  Local<Context> context = Context::New(m_isolate);
   Context::Scope context_scope(context);
 
   const int main_idx {NativesCollection::GetIndex("main")};
@@ -140,7 +140,7 @@ void ThreadContext::Run() {
   const std::string main_name {NativesCollection::GetScriptName(main_idx)};
 
   Local<String> code = String::NewFromUtf8(
-    v8_isolate,
+    m_isolate,
     main_source.data(),
     NewStringType::kNormal,
     main_source.size()
@@ -153,24 +153,28 @@ void ThreadContext::Run() {
   ).ToLocalChecked();
 
   Local<Value> result = script->Run(context).ToLocalChecked();
-  Local<Object> bridge = Object::New(v8_isolate);
+  Local<Object> bridge = Object::New(m_isolate);
   Local<Value> args[] = {bridge};
   assert(result->IsFunction());
   Local<Function> bootstrap_function = Local<Function>::Cast(result);
 
-  i::InitializeBridgeObject(v8_isolate, context, bridge);
-  bootstrap_function->Call(Null(v8_isolate), 1, args);
+  i::InitializeBridgeObject(m_isolate, context, bridge);
+  bootstrap_function->Call(Null(m_isolate), 1, args);
 
-  uv_run(uv_loop, UV_RUN_DEFAULT);
+  uv_run(m_loop, UV_RUN_DEFAULT);
 }
 
 void ThreadContext::Dispose() {
-  uv_run(uv_loop, UV_RUN_DEFAULT);
-  free(uv_loop);
-  v8_isolate->Dispose();
+  uv_run(m_loop, UV_RUN_DEFAULT);
+  free(m_loop);
+  m_isolate->Dispose();
 
-  uv_loop = nullptr;
-  v8_isolate = nullptr;
+  m_loop = nullptr;
+  m_isolate = nullptr;
+}
+
+Isolate* ThreadContext::GetIsolate() {
+  return m_isolate;
 }
 
 ThreadContext* ThreadContext::New() {

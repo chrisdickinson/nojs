@@ -13,13 +13,15 @@ namespace NoJS {
       static ThreadContext* New();
       void Dispose();
       void Run();
+
+      inline v8::Isolate* GetIsolate();
     private:
       ThreadContext();
       void Initialize();
       DISALLOW_COPY_AND_ASSIGN(ThreadContext);
 
-      uv_loop_t* uv_loop;
-      v8::Isolate* v8_isolate;
+      uv_loop_t* m_loop;
+      v8::Isolate* m_isolate;
   };
 }
 
