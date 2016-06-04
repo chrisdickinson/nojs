@@ -285,7 +285,6 @@ template("win_x64_toolchains") {
   # TODO(mcgrathr): These assignments are only required because of
   # crbug.com/395883.  Drop them if that ever gets fixed in GN.
   concurrent_links = invoker.concurrent_links
-  goma_prefix = invoker.goma_prefix
   x64_toolchain_data = invoker.x64_toolchain_data
   clang_cl = invoker.clang_cl
 
@@ -315,7 +314,6 @@ win_x64_toolchains("x64") {
   # TODO(mcgrathr): These assignments are only required because of
   # crbug.com/395883.  Drop them if that ever gets fixed in GN.
   concurrent_links = concurrent_links
-  goma_prefix = goma_prefix
   x64_toolchain_data = x64_toolchain_data
 }
 
@@ -330,7 +328,6 @@ win_x64_toolchains("nacl_win64") {
   # TODO(mcgrathr): These assignments are only required because of
   # crbug.com/395883.  Drop them if that ever gets fixed in GN.
   concurrent_links = concurrent_links
-  goma_prefix = goma_prefix
   x64_toolchain_data = x64_toolchain_data
   clang_cl = clang_cl
 }
