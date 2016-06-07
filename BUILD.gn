@@ -34,6 +34,8 @@ executable("nojs") {
   sources = [
     "$target_gen_dir/libraries.cc",
     "src/nojs_thread_context.cc",
+    "src/nojs_string.cc",
+    "src/nojs_fs.cc",
     "src/main.cc"
   ]
   deps = [
