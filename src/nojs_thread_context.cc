@@ -9,6 +9,8 @@
 #include "nojs_thread_context.h"
 #include "nojs_thread_context_inl.h"
 #include "nojs_natives.h"
+#include "nojs_utils_inl.h"
+#include "nojs_fs.h"
 
 using v8::Local;
 using v8::HandleScope;
@@ -40,7 +42,8 @@ namespace NoJS {
 namespace i {
 
 void Print (const v8::FunctionCallbackInfo<Value>& info) {
-  Isolate* isolate(info.GetIsolate());
+  ThreadContext* tc = ThreadContext::From(info);
+  Isolate* isolate(tc->GetIsolate());
   HandleScope scope(isolate);
 
   v8::String::Utf8Value output(info[0]);
@@ -48,7 +51,8 @@ void Print (const v8::FunctionCallbackInfo<Value>& info) {
   std::cout << *output << std::endl;
 }
 
-void InitializeBridgeObject (Isolate* isolate, Local<Context> context, Local<Object> bridge) {
+void InitializeBridgeObject (ThreadContext* tc, Local<Context> context, Local<Object> bridge) {
+  Isolate* isolate = tc->GetIsolate();
   HandleScope handle_scope(isolate);
 
   Local<Object> sources = Object::New(isolate);
@@ -87,25 +91,9 @@ void InitializeBridgeObject (Isolate* isolate, Local<Context> context, Local<Obj
     }
   }
 
-  v8::Local<v8::Function> function = v8::FunctionTemplate::New(
-    isolate,
-    Print,
-    Null(isolate),
-    v8::Local<v8::Signature>()
-  )->GetFunction();
-
   // bridge.print = fn
-  {
-    v8::Maybe<bool> success = bridge->Set(context, String::NewFromUtf8(
-      isolate,
-      "print",
-      NewStringType::kNormal
-    ).ToLocalChecked(), function);
-
-    if (!success.FromMaybe(false)) {
-      abort();
-    }
-  }
+  tc->SetMethod(bridge, "print", Print);
+  FS::ContributeToBridge(tc, bridge);
 }
 
 }
@@ -113,11 +101,21 @@ void InitializeBridgeObject (Isolate* isolate, Local<Context> context, Local<Obj
 static std::list<ThreadContext*> threads;
 static ArrayBufferAllocator allocator;
 
-ThreadContext::ThreadContext() :
-  m_loop(nullptr),
-  m_isolate(nullptr) {
+ThreadContext::ThreadContext(
+  v8::Isolate* isolate,
+  v8::Local<v8::Context> context,
+  uv_loop_t* loop) :
+  m_loop(loop),
+  m_isolate(isolate),
+  m_context(isolate, context) {
+  HandleScope handle_scope(m_isolate);
+  Context::Scope context_scope(context);
+  context->SetAlignedPointerInEmbedderData(kContextEmbedderDataIndex, this);
+  m_as_external.Reset(m_isolate, v8::External::New(m_isolate, this));
 }
 
+ThreadContext::~ThreadContext() {
+}
 
 void ThreadContext::Initialize() {
   m_loop = reinterpret_cast<uv_loop_t*>(malloc(sizeof(uv_loop_t)));
@@ -132,7 +130,7 @@ void ThreadContext::Initialize() {
 void ThreadContext::Run() {
   Isolate::Scope isolate_scope(m_isolate);
   HandleScope handle_scope(m_isolate);
-  Local<Context> context = Context::New(m_isolate);
+  Local<Context> context = PersistentToLocal(m_isolate, m_context);
   Context::Scope context_scope(context);
 
   const int main_idx {NativesCollection::GetIndex("main")};
@@ -159,7 +157,7 @@ void ThreadContext::Run() {
   assert(result->IsFunction());
   Local<Function> bootstrap_function = Local<Function>::Cast(result);
 
-  i::InitializeBridgeObject(m_isolate, context, bridge);
+  i::InitializeBridgeObject(this, context, bridge);
   bootstrap_function->Call(Null(m_isolate), 1, args);
 
   uv_run(m_loop, UV_RUN_DEFAULT);
@@ -175,8 +173,22 @@ void ThreadContext::Dispose() {
 }
 
 ThreadContext* ThreadContext::New() {
-  ThreadContext* const thread{new ThreadContext()};
-  thread->Initialize();
+  uv_loop_t* loop = reinterpret_cast<uv_loop_t*>(malloc(sizeof(uv_loop_t)));
+  uv_loop_init(loop);
+  uv_disable_stdio_inheritance();
+
+  Isolate::CreateParams create_params;
+  create_params.array_buffer_allocator = &allocator;
+  Isolate* isolate = Isolate::New(create_params);
+  Isolate::Scope isolate_scope(isolate);
+  HandleScope handle_scope(isolate);
+
+  ThreadContext* const thread(new ThreadContext(
+    isolate,
+    Context::New(isolate),
+    loop
+  ));
+
   threads.push_back(thread);
   return thread; 
 }

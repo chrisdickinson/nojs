@@ -10,10 +10,10 @@ class ThreadContext;
 // Object
 // ============================================================
 // A tracked reference to a v8 object.
-class Object {
+class ObjectBase {
   public:
-    inline Object(ThreadContext*, v8::Local<v8::Object> handle);
-    inline virtual ~Object();
+    inline ObjectBase(ThreadContext*, v8::Local<v8::Object> handle);
+    inline virtual ~ObjectBase();
 
     inline v8::Local<v8::Object> GetJSObject();
     inline v8::Persistent<v8::Object>& GetPersistent();
@@ -24,7 +24,7 @@ class Object {
     inline void AssociateWeak(Type* ptr);
     inline void Disassociate();
   private:
-    Object();
+    ObjectBase();
 
     template <typename Type>
     static inline void OnGCCallback(const v8::WeakCallbackInfo<Type>& data);

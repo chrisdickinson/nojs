@@ -4,37 +4,45 @@
 #include "nojs_thread_context_inl.h"
 #include "nojs_object.h"
 #include "nojs_utils.h"
+#include "nojs_utils_inl.h"
 #include "v8.h"
 
 namespace NoJS {
 
-inline Object::Object(ThreadContext* ctxt, v8::Local<v8::Object> handle)
+inline ObjectBase::ObjectBase(ThreadContext* ctxt, v8::Local<v8::Object> handle)
   : m_js_object(ctxt->GetIsolate(), handle),
     m_thread_context(ctxt) {
   ASSERT(m_js_object.IsEmpty() == false);
 }
 
-inline Object::~Object() {
+inline ObjectBase::~ObjectBase() {
   ASSERT(m_js_object.IsEmpty());
 }
 
-inline v8::Persistent<v8::Object>& Object::GetPersistent() {
+inline v8::Persistent<v8::Object>& ObjectBase::GetPersistent() {
   return m_js_object;
 }
 
-inline ThreadContext* Object::GetThreadContext() const {
+inline v8::Local<v8::Object> ObjectBase::GetJSObject() {
+  return PersistentToLocal(
+    m_thread_context->GetIsolate(),
+    m_js_object
+  );
+}
+
+inline ThreadContext* ObjectBase::GetThreadContext() const {
   return m_thread_context;
 }
 
 template <typename Type>
-inline void Object::OnGCCallback(const v8::WeakCallbackInfo<Type>& data) {
+inline void ObjectBase::OnGCCallback(const v8::WeakCallbackInfo<Type>& data) {
   Type* self = data.GetParameter();
   self->GetPersistent().Reset();
   delete self;
 }
 
 template <typename Type>
-inline void Object::AssociateWeak(Type* ptr) {
+inline void ObjectBase::AssociateWeak(Type* ptr) {
   v8::HandleScope scope(m_thread_context->GetIsolate());
   v8::Local<v8::Object> handle = GetJSObject();
   ASSERT(handle->InternalFieldCount() > 0);
@@ -47,7 +55,7 @@ inline void Object::AssociateWeak(Type* ptr) {
   );
 }
 
-inline void Object::Disassociate() {
+inline void ObjectBase::Disassociate() {
   m_js_object.ClearWeak();
 }
 

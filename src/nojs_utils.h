@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include "v8.h"
 
 #define DISALLOW_COPY_AND_ASSIGN(TypeName)                                    \
   void operator=(const TypeName&) = delete;                                   \
@@ -45,5 +46,31 @@
 #define CHECK_NE(a, b) CHECK((a) != (b))
 
 #define UNREACHABLE() ABORT()
+
+namespace NoJS {
+
+// If persistent.IsWeak() == false, then do not call persistent.Reset()
+// while the returned Local<T> is still in scope, it will destroy the
+// reference to the object.
+template <class TypeName>
+inline v8::Local<TypeName> PersistentToLocal(
+    v8::Isolate* isolate,
+    const v8::Persistent<TypeName>& persistent);
+
+// Unchecked conversion from a non-weak Persistent<T> to Local<TLocal<T>,
+// use with care!
+//
+// Do not call persistent.Reset() while the returned Local<T> is still in
+// scope, it will destroy the reference to the object.
+template <class TypeName>
+inline v8::Local<TypeName> StrongPersistentToLocal(
+    const v8::Persistent<TypeName>& persistent);
+
+template <class TypeName>
+inline v8::Local<TypeName> WeakPersistentToLocal(
+    v8::Isolate* isolate,
+    const v8::Persistent<TypeName>& persistent);
+
+}
 
 #endif
