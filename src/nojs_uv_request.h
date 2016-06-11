@@ -13,14 +13,14 @@ class Request : public AsyncObject<S> {
 
     template <typename Target>
     static Target* New(ThreadContext*);
+    inline virtual ~Request() {
+    };
   protected:
     inline Request(
       ThreadContext* tc,
       v8::Local<v8::Object> val
     ) : AsyncObject<S>(tc, val) {
       m_request.data = this;
-    };
-    inline virtual ~Request() {
     };
     inline void Resolve(v8::Local<v8::Value>);
     inline void Reject(v8::Local<v8::Value>);
@@ -32,8 +32,9 @@ void Request<T, S>::Resolve(v8::Local<v8::Value> val) {
   ThreadContext* tc = ObjectBase::GetThreadContext();
   v8::Isolate* isolate = tc->GetIsolate();
   v8::HandleScope scope(isolate);
+
   ObjectBase::GetJSObject().template As<v8::Promise::Resolver>()->Resolve(val);
-  ObjectBase::GetPersistent().Reset();
+  ObjectBase::MakeWeak<Request<T, S>>(this);
 }
 
 template <typename T, AsyncType S>
@@ -42,9 +43,8 @@ void Request<T, S>::Reject(v8::Local<v8::Value> val) {
   v8::Isolate* isolate = tc->GetIsolate();
   v8::HandleScope scope(isolate);
 
-
   ObjectBase::GetJSObject().template As<v8::Promise::Resolver>()->Reject(val);
-  ObjectBase::GetPersistent().Reset();
+  ObjectBase::MakeWeak<Request<T, S>>(this);
 }
 
 template <typename T, AsyncType S>

@@ -33,7 +33,7 @@ namespace NoJS {
   void ThreadContext::Set(
     v8::Local<v8::Object> lhs,
     const char* name,
-    v8::Local<v8::Object> rhs
+    v8::Local<v8::Value> rhs
   ) {
     v8::Local<v8::String> name_obj = v8::String::NewFromUtf8(
       GetIsolate(),

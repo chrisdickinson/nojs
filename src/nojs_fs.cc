@@ -104,7 +104,6 @@ class FSRequest : public Request<uv_fs_t, AsyncType::UVFSRequest> {
           request->Reject(res.value);
         break;
       }
-      delete request;
     }
 };
 
@@ -122,8 +121,12 @@ void JSOpen (const v8::FunctionCallbackInfo<Value>& args) {
   v8::Isolate* isolate(tc->GetIsolate());
   HandleScope scope(isolate);
   FSRequest<fsops::Open>* open = FSRequest<fsops::Open>::New(tc);
+  Local<v8::Promise::Resolver> resolver = open->GetJSObject().As<v8::Promise::Resolver>();
+
+  Local<v8::Promise> promise = resolver->GetPromise();
+
   open->Execute(args);
-  return args.GetReturnValue().Set(open->GetJSObject());
+  return args.GetReturnValue().Set(promise);
 }
 
 void ContributeToBridge (ThreadContext* tc, v8::Local<v8::Object> bridge) {
@@ -131,7 +134,6 @@ void ContributeToBridge (ThreadContext* tc, v8::Local<v8::Object> bridge) {
   HandleScope scope(isolate);
 
   tc->SetMethod(bridge, "fsOpen", JSOpen);
-
 }
 
 }

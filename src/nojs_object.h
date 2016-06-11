@@ -21,8 +21,8 @@ class ObjectBase {
 
 
     template <typename Type>
-    inline void AssociateWeak(Type* ptr);
-    inline void Disassociate();
+    inline void MakeWeak(Type* ptr);
+    inline void ClearWeak();
   private:
     ObjectBase();
 

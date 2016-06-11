@@ -42,11 +42,8 @@ inline void ObjectBase::OnGCCallback(const v8::WeakCallbackInfo<Type>& data) {
 }
 
 template <typename Type>
-inline void ObjectBase::AssociateWeak(Type* ptr) {
+inline void ObjectBase::MakeWeak(Type* ptr) {
   v8::HandleScope scope(m_thread_context->GetIsolate());
-  v8::Local<v8::Object> handle = GetJSObject();
-  ASSERT(handle->InternalFieldCount() > 0);
-  handle->SetAlignedPointerInInternalField(0, ptr);
   m_js_object.MarkIndependent();
   m_js_object.SetWeak<Type>(
     ptr,
@@ -55,7 +52,7 @@ inline void ObjectBase::AssociateWeak(Type* ptr) {
   );
 }
 
-inline void ObjectBase::Disassociate() {
+inline void ObjectBase::ClearWeak() {
   m_js_object.ClearWeak();
 }
 
