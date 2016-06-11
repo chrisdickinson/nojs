@@ -10,6 +10,7 @@
 #include "nojs_thread_context_inl.h"
 #include "nojs_natives.h"
 #include "nojs_utils_inl.h"
+#include "nojs_constants.h"
 #include "nojs_fs.h"
 
 using v8::Local;
@@ -47,7 +48,6 @@ void Print (const v8::FunctionCallbackInfo<Value>& info) {
   HandleScope scope(isolate);
 
   v8::String::Utf8Value output(info[0]);
-
   std::cout << *output << std::endl;
 }
 
@@ -94,6 +94,7 @@ void InitializeBridgeObject (ThreadContext* tc, Local<Context> context, Local<Ob
   // bridge.print = fn
   tc->SetMethod(bridge, "print", Print);
   FS::ContributeToBridge(tc, bridge);
+  Constants::ContributeToBridge(tc, bridge);
 }
 
 }
@@ -190,7 +191,7 @@ ThreadContext* ThreadContext::New() {
   ));
 
   threads.push_back(thread);
-  return thread; 
+  return thread;
 }
 
 }
