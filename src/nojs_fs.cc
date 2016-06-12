@@ -76,7 +76,9 @@ class FSRequest : public Request<uv_fs_t, AsyncType::UVFSRequest> {
   public:
     typedef Request<uv_fs_t, AsyncType::UVFSRequest> Parent;
 
-    void Execute(const FunctionCallbackInfo<Value>& args) {
+    Local<v8::Value> Execute(const FunctionCallbackInfo<Value>& args) {
+      Local<v8::Promise::Resolver> resolver = GetJSObject().template As<v8::Promise::Resolver>();
+      Local<v8::Promise> promise = resolver->GetPromise();
       int err = FSOperation::Execute(GetThreadContext(), args, &m_request, After);
 
       if (err < 0) {
@@ -85,6 +87,8 @@ class FSRequest : public Request<uv_fs_t, AsyncType::UVFSRequest> {
         uv_req->path = nullptr;
         After(uv_req);
       }
+
+      return promise;
     }
 
     static FSRequest<FSOperation>* New(ThreadContext* tc) {
@@ -114,33 +118,68 @@ class FSRequest : public Request<uv_fs_t, AsyncType::UVFSRequest> {
     }
 };
 
-class SyncFSRequest {
+template <typename FSOperation>
+class FSRequestSync {
   public:
-  private:
-    static void After(uv_fs_t* raw_req) {
+    static FSRequestSync<FSOperation>* New(ThreadContext* tc) {
+      return new FSRequestSync<FSOperation>(tc);
+    };
+
+    Local<v8::Value> Execute(const FunctionCallbackInfo<Value>& args) {
+      int err = FSOperation::Execute(m_context, args, &m_request, nullptr);
+
+      if (err < 0) {
+        m_request.result = err;
+        m_request.path = nullptr;
+      }
+      return OnReady();
     }
+
+  private:
+    FSRequestSync<FSOperation>(ThreadContext* context)
+      : m_context(context) {
+
+    }
+
+    Local<v8::Value> OnReady() {
+      fsops::Resolution res(FSOperation::OnComplete(m_context, &m_request));
+
+      if (res.kind == fsops::Resolution::RESOLVE) {
+        return res.value;
+      }
+
+      m_context->GetIsolate()->ThrowException(
+        v8::Exception::Error(v8::String::NewFromUtf8(
+          m_context->GetIsolate(),
+          "Things are okay.",
+          v8::NewStringType::kInternalized
+        ).ToLocalChecked())
+      );
+      return v8::Null(m_context->GetIsolate());
+    }
+
+    uv_fs_t m_request;
+    ThreadContext* m_context;
 };
 
 namespace FS {
 
-void JSOpen (const v8::FunctionCallbackInfo<Value>& args) {
+template <typename T>
+void BindRequest (const v8::FunctionCallbackInfo<Value>& args) {
   ThreadContext* tc = ThreadContext::From(args);
   v8::Isolate* isolate(tc->GetIsolate());
   HandleScope scope(isolate);
-  FSRequest<fsops::Open>* open = FSRequest<fsops::Open>::New(tc);
-  Local<v8::Promise::Resolver> resolver = open->GetJSObject().As<v8::Promise::Resolver>();
-
-  Local<v8::Promise> promise = resolver->GetPromise();
-
-  open->Execute(args);
-  return args.GetReturnValue().Set(promise);
+  T* open = T::New(tc);
+  Local<v8::Value> obj = open->Execute(args);
+  return args.GetReturnValue().Set(obj);
 }
 
 void ContributeToBridge (ThreadContext* tc, v8::Local<v8::Object> bridge) {
   v8::Isolate* isolate(tc->GetIsolate());
   HandleScope scope(isolate);
 
-  tc->SetMethod(bridge, "fsOpen", JSOpen);
+  tc->SetMethod(bridge, "fsOpen", BindRequest<FSRequest<fsops::Open>>);
+  tc->SetMethod(bridge, "fsOpenSync", BindRequest<FSRequestSync<fsops::Open>>);
 }
 
 }
