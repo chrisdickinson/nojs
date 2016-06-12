@@ -20,7 +20,7 @@ BufferValue::BufferValue(v8::Isolate* isolate, v8::Local<v8::Value> value)
     }
 
     memcpy(m_str, *string, len);
-    m_str[len - 1] = '\0';
+    m_str[len] = '\0';
     m_state = OK;
   }
 

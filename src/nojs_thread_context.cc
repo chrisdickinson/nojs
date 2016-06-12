@@ -136,7 +136,6 @@ void ThreadContext::Run() {
 
   const int main_idx {NativesCollection::GetIndex("main")};
   const std::string main_source {NativesCollection::GetScriptSource(main_idx)};
-
   const std::string main_name {NativesCollection::GetScriptName(main_idx)};
 
   Local<String> code = String::NewFromUtf8(
@@ -161,6 +160,18 @@ void ThreadContext::Run() {
   i::InitializeBridgeObject(this, context, bridge);
   bootstrap_function->Call(Null(m_isolate), 1, args);
 
+  {
+    v8::SealHandleScope seal(m_isolate);
+    bool more = false;
+    // initialize -> run uv -> run microtasks -> run uv (check for more?)
+
+    uv_run(m_loop, UV_RUN_ONCE);
+
+    do {
+      m_isolate->RunMicrotasks();
+      more = uv_run(m_loop, UV_RUN_ONCE);
+    } while (more == true);
+  }
   uv_run(m_loop, UV_RUN_DEFAULT);
 }
 

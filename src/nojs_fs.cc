@@ -19,7 +19,7 @@ namespace fsops {
 
   struct Resolution {
     Local<Value> value;
-    enum {
+    enum Kind {
       REJECT,
       RESOLVE
     } kind;
@@ -55,10 +55,17 @@ namespace fsops {
         return err;
       };
       inline static Resolution OnComplete(ThreadContext* tc, uv_fs_t* raw_req) {
-        HandleScope handle_scope(tc->GetIsolate());
+        if (raw_req->result < 0) {
+          return Resolution{
+            .kind=Resolution::REJECT,
+            .value=v8::Integer::New(tc->GetIsolate(), raw_req->result)
+          };
+        }
 
-        Local<Value> val = v8::Null(tc->GetIsolate());
-        return Resolution{.kind=Resolution::REJECT, .value=val};
+        return Resolution{
+          .kind=Resolution::RESOLVE,
+          .value=v8::Integer::New(tc->GetIsolate(), raw_req->result)
+        };
       };
   };
 

@@ -4,6 +4,7 @@
 #include "nojs_async.h"
 #include "nojs_object_inl.h"
 #include "nojs_utils.h"
+#include <iostream>
 
 namespace NoJS {
 
