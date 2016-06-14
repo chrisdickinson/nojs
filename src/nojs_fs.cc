@@ -1,6 +1,7 @@
 #include "uv.h"
 #include "v8.h"
 
+#include "nojs_validate_arguments.h"
 #include "nojs_thread_context_inl.h"
 #include "nojs_object_inl.h"
 #include "nojs_uv_request.h"
@@ -25,40 +26,57 @@ namespace fsops {
     } kind;
   };
 
-
   class Open {
     public:
-      inline static int Execute(
+      inline static v8::MaybeLocal<v8::Value> Execute(
         ThreadContext* tc,
         const FunctionCallbackInfo<Value>& args,
         uv_fs_t* raw_request,
         OnCompleteCallback cb
       ) {
 
-        int len = args.Length();
-        // open(path : ArrayBuffer, flags : int, mode : int)
-        switch (len) {
-          case 0:
-          case 1:
-            return -1;
-          default:
-          case 2:
-            if (!args[1]->IsInt32() || !args[2]->IsInt32()) {
-              return -1;
-            }
-            break;
+        v8::MaybeLocal<Value> err = Validation::And<
+            Validation::Length<3>,
+            Validation::And<
+              Validation::Or<
+                Validation::Slot<0, Validation::IsString>,
+                Validation::Slot<0, Validation::IsArrayBufferView>
+              >,
+              Validation::And<
+                Validation::Slot<1, Validation::IsInt32>,
+                Validation::Slot<2, Validation::IsInt32>
+              >
+            >
+        >::Check(tc, args);
+
+        if (!err.IsEmpty()) {
+          return err;
         }
-        int flags = args[1]->Int32Value();
-        int mode = args[2]->Int32Value();
+
+        int32_t flags = args[1]->Int32Value();
+        int32_t mode = args[2]->Int32Value();
         const char* path = BufferValue(tc->GetIsolate(), args[0]).Contents();
-        int err = uv_fs_open(tc->GetUVLoop(), raw_request, path, flags, mode, cb);
-        return err;
+        int cerr = uv_fs_open(tc->GetUVLoop(), raw_request, path, flags, mode, cb);
+
+        if (cerr < 0) {
+          return CreateError(
+            tc->GetIsolate(),
+            v8::Exception::Error,
+            std::string(uv_strerror(cerr))
+          );
+        }
+
+        return v8::MaybeLocal<v8::Value>();
       };
       inline static Resolution OnComplete(ThreadContext* tc, uv_fs_t* raw_req) {
         if (raw_req->result < 0) {
           return Resolution{
             .kind=Resolution::REJECT,
-            .value=v8::Integer::New(tc->GetIsolate(), raw_req->result)
+            .value=CreateError(
+              tc->GetIsolate(),
+              v8::Exception::Error,
+              std::string(uv_strerror(raw_req->result))
+            ).ToLocalChecked()
           };
         }
 
@@ -79,13 +97,10 @@ class FSRequest : public Request<uv_fs_t, AsyncType::UVFSRequest> {
     Local<v8::Value> Execute(const FunctionCallbackInfo<Value>& args) {
       Local<v8::Promise::Resolver> resolver = GetJSObject().template As<v8::Promise::Resolver>();
       Local<v8::Promise> promise = resolver->GetPromise();
-      int err = FSOperation::Execute(GetThreadContext(), args, &m_request, After);
+      v8::MaybeLocal<Value> err = FSOperation::Execute(GetThreadContext(), args, &m_request, After);
 
-      if (err < 0) {
-        uv_fs_t* uv_req = &m_request;
-        uv_req->result = err;
-        uv_req->path = nullptr;
-        After(uv_req);
+      if (!err.IsEmpty()) {
+        Reject(err.ToLocalChecked());
       }
 
       return promise;
@@ -126,11 +141,13 @@ class FSRequestSync {
     };
 
     Local<v8::Value> Execute(const FunctionCallbackInfo<Value>& args) {
-      int err = FSOperation::Execute(m_context, args, &m_request, nullptr);
+      v8::MaybeLocal<Value> err = FSOperation::Execute(m_context, args, &m_request, nullptr);
 
-      if (err < 0) {
-        m_request.result = err;
-        m_request.path = nullptr;
+      if (!err.IsEmpty()) {
+        m_context->GetIsolate()->ThrowException(
+          err.ToLocalChecked()
+        );
+        return v8::Null(m_context->GetIsolate());
       }
       return OnReady();
     }
@@ -148,13 +165,7 @@ class FSRequestSync {
         return res.value;
       }
 
-      m_context->GetIsolate()->ThrowException(
-        v8::Exception::Error(v8::String::NewFromUtf8(
-          m_context->GetIsolate(),
-          "Things are okay.",
-          v8::NewStringType::kInternalized
-        ).ToLocalChecked())
-      );
+      m_context->GetIsolate()->ThrowException(res.value);
       return v8::Null(m_context->GetIsolate());
     }
 
