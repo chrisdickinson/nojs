@@ -48,7 +48,7 @@ void Print (const v8::FunctionCallbackInfo<Value>& info) {
   HandleScope scope(isolate);
 
   v8::String::Utf8Value output(info[0]);
-  std::cout << *output << std::endl;
+  std::cout << *output;
 }
 
 void InitializeBridgeObject (ThreadContext* tc, Local<Context> context, Local<Object> bridge) {
@@ -162,15 +162,15 @@ void ThreadContext::Run() {
 
   {
     v8::SealHandleScope seal(m_isolate);
-    bool more = false;
     // initialize -> run uv -> run microtasks -> run uv (check for more?)
 
-    uv_run(m_loop, UV_RUN_ONCE);
+    // make sure any promises created by the first tick are run
+    m_isolate->RunMicrotasks();
 
-    do {
+    while (uv_loop_alive(m_loop)) {
+      uv_run(m_loop, UV_RUN_ONCE);
       m_isolate->RunMicrotasks();
-      more = uv_run(m_loop, UV_RUN_ONCE);
-    } while (more == true);
+    }
   }
   uv_run(m_loop, UV_RUN_DEFAULT);
 }

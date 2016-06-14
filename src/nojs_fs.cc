@@ -26,7 +26,8 @@ namespace fsops {
     } kind;
   };
 
-  class Open {
+  template <typename Op>
+  class BasicOperation {
     public:
       inline static v8::MaybeLocal<v8::Value> Execute(
         ThreadContext* tc,
@@ -35,28 +36,12 @@ namespace fsops {
         OnCompleteCallback cb
       ) {
 
-        v8::MaybeLocal<Value> err = Validation::And<
-            Validation::Length<3>,
-            Validation::And<
-              Validation::Or<
-                Validation::Slot<0, Validation::IsString>,
-                Validation::Slot<0, Validation::IsArrayBufferView>
-              >,
-              Validation::And<
-                Validation::Slot<1, Validation::IsInt32>,
-                Validation::Slot<2, Validation::IsInt32>
-              >
-            >
-        >::Check(tc, args);
-
+        v8::MaybeLocal<Value> err = Op::Validator::Check(tc, args);
         if (!err.IsEmpty()) {
           return err;
         }
 
-        int32_t flags = args[1]->Int32Value();
-        int32_t mode = args[2]->Int32Value();
-        const char* path = BufferValue(tc->GetIsolate(), args[0]).Contents();
-        int cerr = uv_fs_open(tc->GetUVLoop(), raw_request, path, flags, mode, cb);
+        int cerr = Op::Execute(tc, args, raw_request, cb);
 
         if (cerr < 0) {
           return CreateError(
@@ -68,8 +53,10 @@ namespace fsops {
 
         return v8::MaybeLocal<v8::Value>();
       };
+
       inline static Resolution OnComplete(ThreadContext* tc, uv_fs_t* raw_req) {
         if (raw_req->result < 0) {
+          uv_fs_req_cleanup(raw_req);
           return Resolution{
             .kind=Resolution::REJECT,
             .value=CreateError(
@@ -80,13 +67,123 @@ namespace fsops {
           };
         }
 
-        return Resolution{
+        Resolution res{
           .kind=Resolution::RESOLVE,
-          .value=v8::Integer::New(tc->GetIsolate(), raw_req->result)
+          .value=Op::Resolver::Resolve(tc, raw_req)
         };
+        uv_fs_req_cleanup(raw_req);
+        return res;
       };
   };
 
+  class PassResult {
+    public:
+      inline static v8::Local<v8::Value> Resolve(ThreadContext* tc, uv_fs_t* raw_req) {
+        return v8::Integer::New(tc->GetIsolate(), raw_req->result);
+      }
+  };
+
+  class _OpenImplementation {
+    public:
+      typedef Validation::And<
+          Validation::Length<3>,
+          Validation::And<
+            Validation::Or<
+              Validation::Slot<0, Validation::IsString>,
+              Validation::Slot<0, Validation::IsArrayBufferView>
+            >,
+            Validation::And<
+              Validation::Slot<1, Validation::IsInt32>,
+              Validation::Slot<2, Validation::IsInt32>
+            >
+          >
+      > Validator;
+      typedef PassResult Resolver;
+
+      inline static int Execute(
+        ThreadContext* tc,
+        const FunctionCallbackInfo<Value>& args,
+        uv_fs_t* raw_request,
+        OnCompleteCallback cb
+      ) {
+        int32_t flags = args[1]->Int32Value();
+        int32_t mode = args[2]->Int32Value();
+        const char* path = BufferValue(tc->GetIsolate(), args[0]).Contents();
+        return uv_fs_open(tc->GetUVLoop(), raw_request, path, flags, mode, cb);
+      };
+  };
+
+  class _CloseImplementation {
+    public:
+      typedef Validation::And<
+        Validation::Length<1>,
+        Validation::Slot<0, Validation::IsInt32>
+      > Validator;
+      typedef PassResult Resolver;
+
+      inline static int Execute(
+        ThreadContext* tc,
+        const FunctionCallbackInfo<Value>& args,
+        uv_fs_t* raw_request,
+        OnCompleteCallback cb
+      ) {
+        return uv_fs_close(tc->GetUVLoop(), raw_request, args[0]->Int32Value(), cb);
+      };
+  };
+
+  class _ReadImplementation {
+    public:
+      typedef Validation::And<
+        Validation::Length<4>,
+        Validation::And<
+          Validation::Slot<0, Validation::IsInt32>,
+          Validation::And<
+            Validation::Slot<1, Validation::IsArrayBuffer>,
+            Validation::And<
+              Validation::Slot<2, Validation::IsInt32>,
+              Validation::Slot<3, Validation::IsInt32>
+            >
+          >
+        >
+      > Validator;
+      typedef PassResult Resolver;
+
+      inline static int Execute(
+        ThreadContext* tc,
+        const FunctionCallbackInfo<Value>& args,
+        uv_fs_t* raw_request,
+        OnCompleteCallback cb
+      ) {
+        int32_t fd = args[0]->Int32Value();
+        v8::Local<v8::ArrayBuffer> buf = args[1].As<v8::ArrayBuffer>();
+        size_t len = args[2]->Int32Value();
+        int32_t offset = args[3]->Int32Value();
+        v8::ArrayBuffer::Contents contents{buf->GetContents()};
+        void* rawbuf = contents.Data();
+        size_t rawbuf_len = contents.ByteLength();
+
+        uv_buf_t uv_buf = uv_buf_init(
+          reinterpret_cast<char*>(rawbuf),
+          len > rawbuf_len 
+          ? rawbuf_len
+          : len
+        );
+
+        return uv_fs_read(
+          tc->GetUVLoop(),
+          raw_request,
+          fd,
+          &uv_buf,
+          1,
+          offset,
+          cb
+        );
+      };
+  };
+
+  typedef BasicOperation<_OpenImplementation> Open;
+  typedef BasicOperation<_ReadImplementation> Read;
+  typedef BasicOperation<_CloseImplementation> Close;
 }
 
 template <typename FSOperation>
@@ -100,6 +197,7 @@ class FSRequest : public Request<uv_fs_t, AsyncType::UVFSRequest> {
       v8::MaybeLocal<Value> err = FSOperation::Execute(GetThreadContext(), args, &m_request, After);
 
       if (!err.IsEmpty()) {
+        uv_fs_req_cleanup(&m_request);
         Reject(err.ToLocalChecked());
       }
 
@@ -191,6 +289,11 @@ void ContributeToBridge (ThreadContext* tc, v8::Local<v8::Object> bridge) {
 
   tc->SetMethod(bridge, "fsOpen", BindRequest<FSRequest<fsops::Open>>);
   tc->SetMethod(bridge, "fsOpenSync", BindRequest<FSRequestSync<fsops::Open>>);
+
+  tc->SetMethod(bridge, "fsClose", BindRequest<FSRequest<fsops::Close>>);
+  tc->SetMethod(bridge, "fsCloseSync", BindRequest<FSRequestSync<fsops::Close>>);
+  tc->SetMethod(bridge, "fsRead", BindRequest<FSRequest<fsops::Read>>);
+  tc->SetMethod(bridge, "fsReadSync", BindRequest<FSRequestSync<fsops::Read>>);
 }
 
 }
