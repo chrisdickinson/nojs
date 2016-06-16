@@ -12,6 +12,7 @@
 #include "nojs_utils_inl.h"
 #include "nojs_constants.h"
 #include "nojs_fs.h"
+#include "nojs_vm.h"
 
 using v8::Local;
 using v8::HandleScope;
@@ -94,6 +95,7 @@ void InitializeBridgeObject (ThreadContext* tc, Local<Context> context, Local<Ob
   // bridge.print = fn
   tc->SetMethod(bridge, "print", Print);
   FS::ContributeToBridge(tc, bridge);
+  VM::ContributeToBridge(tc, bridge);
   Constants::ContributeToBridge(tc, bridge);
 }
 

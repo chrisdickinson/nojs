@@ -1,6 +1,8 @@
 #ifndef NOJS_THREAD_CONTEXT_INL_H
 #define NOJS_THREAD_CONTEXT_INL_H
 #include "nojs_thread_context.h"
+#include "nojs_utils.h"
+#include "nojs_utils_inl.h"
 
 namespace NoJS {
   v8::Isolate* ThreadContext::GetIsolate() {

@@ -33,10 +33,12 @@ action("js2c") {
 executable("nojs") {
   sources = [
     "$target_gen_dir/libraries.cc",
+    "src/nojs_validate_arguments.cc",
     "src/nojs_thread_context.cc",
     "src/nojs_constants.cc",
     "src/nojs_string.cc",
     "src/nojs_fs.cc",
+    "src/nojs_vm.cc",
     "src/main.cc"
   ]
   deps = [

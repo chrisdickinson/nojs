@@ -154,11 +154,9 @@ class _Name_ ## XS {                          \
   public:                                     \
     static const char* Value;                 \
 };                                            \
-const char* _Name_ ## XS ::Value = #XS;       \
 typedef Type<Is:: XS, _Name_ ## XS> Is ## XS;
 FORWARD_TO_VALUE(V)
 #undef V
-#undef FORWARD_TO_VALUE
 }
 
 }

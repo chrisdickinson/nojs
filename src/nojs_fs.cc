@@ -292,6 +292,7 @@ void ContributeToBridge (ThreadContext* tc, v8::Local<v8::Object> bridge) {
 
   tc->SetMethod(bridge, "fsClose", BindRequest<FSRequest<fsops::Close>>);
   tc->SetMethod(bridge, "fsCloseSync", BindRequest<FSRequestSync<fsops::Close>>);
+
   tc->SetMethod(bridge, "fsRead", BindRequest<FSRequest<fsops::Read>>);
   tc->SetMethod(bridge, "fsReadSync", BindRequest<FSRequestSync<fsops::Read>>);
 }
