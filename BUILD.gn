@@ -37,6 +37,7 @@ executable("nojs") {
     "src/nojs_thread_context.cc",
     "src/nojs_constants.cc",
     "src/nojs_string.cc",
+    "src/nojs_misc.cc",
     "src/nojs_fs.cc",
     "src/nojs_vm.cc",
     "src/main.cc"

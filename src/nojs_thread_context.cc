@@ -11,6 +11,7 @@
 #include "nojs_natives.h"
 #include "nojs_utils_inl.h"
 #include "nojs_constants.h"
+#include "nojs_misc.h"
 #include "nojs_fs.h"
 #include "nojs_vm.h"
 
@@ -96,6 +97,7 @@ void InitializeBridgeObject (ThreadContext* tc, Local<Context> context, Local<Ob
   tc->SetMethod(bridge, "print", Print);
   FS::ContributeToBridge(tc, bridge);
   VM::ContributeToBridge(tc, bridge);
+  Misc::ContributeToBridge(tc, bridge);
   Constants::ContributeToBridge(tc, bridge);
 }
 
