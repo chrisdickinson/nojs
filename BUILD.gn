@@ -19,7 +19,9 @@ action("js2c") {
   visibility = [":*"]
   script = "tools/nojs_js2c.py"
   sources = [
-    "lib/main.js"
+    "lib/main.js",
+    "lib/path.js",
+    "lib/fs.js"
   ]
   outputs = [
     "$target_gen_dir/libraries.cc"
