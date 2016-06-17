@@ -24,6 +24,7 @@ namespace NoJS {
       );
       inline void SetMethod(v8::Local<v8::Object>, const char*, v8::FunctionCallback);
       inline void Set(v8::Local<v8::Object>, const char*, v8::Local<v8::Value>);
+      inline v8::MaybeLocal<v8::Value> Get(v8::Local<v8::Object>, const char*);
 
       inline static ThreadContext* From(const v8::FunctionCallbackInfo<v8::Value>&);
       static const int kContextEmbedderDataIndex = NOJS_CONTEXT_EMBEDDER_DATA_INDEX;

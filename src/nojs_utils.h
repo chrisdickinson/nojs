@@ -73,4 +73,12 @@ inline v8::Local<TypeName> WeakPersistentToLocal(
 
 }
 
+#if defined(_MSC_VER) && _MSC_VER < 1900
+#define arraysize(a) (sizeof(a) / sizeof(*a))  // Workaround for VS 2013.
+#else
+template <typename T, size_t N>
+constexpr size_t arraysize(const T(&)[N]) { return N; }
+#endif
+
+
 #endif

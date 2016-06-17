@@ -45,6 +45,18 @@ namespace NoJS {
     lhs->Set(name_obj, rhs);
   };
 
+  v8::MaybeLocal<v8::Value> ThreadContext::Get(
+    v8::Local<v8::Object> lhs,
+    const char* name
+  ) {
+    v8::Local<v8::String> name_obj = v8::String::NewFromUtf8(
+      GetIsolate(),
+      name,
+      v8::NewStringType::kInternalized
+    ).ToLocalChecked();
+    return lhs->Get(name_obj);
+  };
+
   void ThreadContext::SetMethod(
     v8::Local<v8::Object> lhs,
     const char* name,

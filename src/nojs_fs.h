@@ -8,7 +8,7 @@ class ThreadContext;
 
 namespace FS {
 
-void ContributeToBridge (ThreadContext*, v8::Local<v8::Object>);
+void ContributeToBridge (ThreadContext*, v8::Local<v8::Object>, v8::Local<v8::Object>);
 
 }
 

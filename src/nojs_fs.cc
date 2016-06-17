@@ -181,9 +181,183 @@ namespace fsops {
       };
   };
 
+  class JSBridge {
+    public:
+
+      static v8::Local<v8::Function> GetConstructor() {
+        return StrongPersistentToLocal(stats_constructor);
+      };
+      static void SetConstructor(v8::Isolate* isolate, v8::Local<v8::Function> fn) {
+        stats_constructor.Reset(isolate, fn);
+      };
+
+    private:
+      JSBridge();
+      static v8::Persistent<v8::Function> stats_constructor;
+  };
+
+  v8::Persistent<v8::Function> JSBridge::stats_constructor;
+
+  template <typename StatImpl>
+  class _StatImplementation : public JSBridge {
+    public:
+      class Resolver {
+        public:
+          inline static v8::Local<v8::Value> Resolve(
+            ThreadContext* tc,
+            uv_fs_t* req
+          ) {
+            v8::Isolate* isolate(tc->GetIsolate());
+            v8::EscapableHandleScope scope(isolate);
+            uv_stat_t* stat = reinterpret_cast<uv_stat_t*>(req->ptr);
+
+            v8::Local<v8::Value> argv[] = {
+              /*dev =*/     v8::Integer::New(isolate, stat->st_dev),
+              /*mode =*/    v8::Integer::New(isolate, stat->st_mode),
+              /*nlink =*/   v8::Integer::New(isolate, stat->st_nlink),
+              /*uid =*/     v8::Integer::New(isolate, stat->st_uid),
+              /*gid =*/     v8::Integer::New(isolate, stat->st_gid),
+              /*rdev =*/    v8::Integer::New(isolate, stat->st_rdev),
+
+              /*ino =*/     v8::Number::New(isolate, static_cast<double>(stat->st_ino)),
+              /*size =*/    v8::Number::New(isolate, static_cast<double>(stat->st_size)),
+  #ifdef __POSIX__
+              /*blksize =*/ v8::Integer::New(isolate, stat->st_blksize),
+              /*blocks =*/  v8::Number::New(isolate, static_cast<double>(stat->st_blocks)),
+  #else
+              /*blksize =*/ v8::Undefined(isolate),
+              /*blocks =*/  v8::Undefined(isolate),
+  #endif
+              /*atime_msec =*/
+                            v8::Number::New(isolate, (
+                              (static_cast<double>(stat->st_atim.tv_sec) * 1000) +
+                              (static_cast<double>(stat->st_atim.tv_nsec) / 1000000)
+                            )),
+
+              /*ctime_msec =*/
+                            v8::Number::New(isolate, (
+                              (static_cast<double>(stat->st_ctim.tv_sec) * 1000) +
+                              (static_cast<double>(stat->st_ctim.tv_nsec) / 1000000)
+                            )),
+
+              /*mtime_msec =*/
+                            v8::Number::New(isolate, (
+                              (static_cast<double>(stat->st_mtim.tv_sec) * 1000) +
+                              (static_cast<double>(stat->st_mtim.tv_nsec) / 1000000)
+                            )),
+
+              /*birthtime_msec =*/
+                            v8::Number::New(isolate, (
+                              (static_cast<double>(stat->st_birthtim.tv_sec) * 1000) +
+                              (static_cast<double>(stat->st_birthtim.tv_nsec) / 1000000)
+                            ))
+            };
+
+            if (argv[sizeof(argv) - 1].IsEmpty()) {
+              return v8::Local<v8::Value>();
+            }
+
+            v8::Local<v8::Value> out = JSBridge::GetConstructor()->NewInstance(
+              isolate->GetCurrentContext(),
+              arraysize(argv),
+              argv
+            ).FromMaybe(v8::Local<v8::Value>());
+
+            return scope.Escape(out);
+          }
+      };
+
+      typedef Validation::And<
+        Validation::Length<1>,
+        typename StatImpl::Validator
+      > Validator;
+
+      inline static int Execute(
+        ThreadContext* tc,
+        const FunctionCallbackInfo<Value>& args,
+        uv_fs_t* raw_request,
+        OnCompleteCallback cb
+      ) {
+        typename StatImpl::Path path(tc->GetIsolate(), args[0]);
+        return StatImpl::Execute(
+          tc->GetUVLoop(),
+          raw_request,
+          path.Contents(),
+          cb
+        );
+      };
+  };
+
+  class _Stat {
+    public:
+      typedef Validation::Or<
+        Validation::Slot<0, Validation::IsString>,
+        Validation::Slot<0, Validation::IsArrayBufferView>
+      > Validator;
+      typedef BufferValue Path;
+
+      inline static int Execute(
+        uv_loop_t* loop,
+        uv_fs_t* req,
+        const char* path,
+        OnCompleteCallback cb) {
+        return uv_fs_stat(loop, req, path, cb);
+      }
+  };
+
+  class _LStat {
+    public:
+      typedef Validation::Or<
+        Validation::Slot<0, Validation::IsString>,
+        Validation::Slot<0, Validation::IsArrayBufferView>
+      > Validator;
+      typedef BufferValue Path;
+
+      inline static int Execute(
+        uv_loop_t* loop,
+        uv_fs_t* req,
+        const char* path,
+        OnCompleteCallback cb) {
+        return uv_fs_lstat(loop, req, path, cb);
+      }
+  };
+
+  class _FStat {
+    private:
+      class FD {
+        public:
+          FD(v8::Isolate* _unused, v8::Local<v8::Value> val)
+            : m_value(val->Int32Value()) {
+          }
+          inline int32_t Contents() {
+            return m_value;
+          }
+        private:
+          int32_t m_value;
+      };
+    public:
+      typedef Validation::Or<
+        Validation::Slot<0, Validation::IsString>,
+        Validation::Slot<0, Validation::IsArrayBufferView>
+      > Validator;
+      typedef FD Path;
+
+      inline static int Execute(
+        uv_loop_t* loop,
+        uv_fs_t* req,
+        int32_t path,
+        OnCompleteCallback cb) {
+        return uv_fs_fstat(loop, req, path, cb);
+      }
+  };
+
   typedef BasicOperation<_OpenImplementation> Open;
   typedef BasicOperation<_ReadImplementation> Read;
   typedef BasicOperation<_CloseImplementation> Close;
+
+  typedef BasicOperation<_StatImplementation<_Stat>> Stat;
+  typedef BasicOperation<_StatImplementation<_LStat>> LStat;
+  typedef BasicOperation<_StatImplementation<_FStat>> FStat;
 }
 
 template <typename FSOperation>
@@ -283,7 +457,7 @@ void BindRequest (const v8::FunctionCallbackInfo<Value>& args) {
   return args.GetReturnValue().Set(obj);
 }
 
-void ContributeToBridge (ThreadContext* tc, v8::Local<v8::Object> bridge) {
+void ContributeToBridge (ThreadContext* tc, v8::Local<v8::Object> bridge, v8::Local<v8::Object> bootstrap) {
   v8::Isolate* isolate(tc->GetIsolate());
   HandleScope scope(isolate);
 
@@ -295,6 +469,22 @@ void ContributeToBridge (ThreadContext* tc, v8::Local<v8::Object> bridge) {
 
   tc->SetMethod(bridge, "fsRead", BindRequest<FSRequest<fsops::Read>>);
   tc->SetMethod(bridge, "fsReadSync", BindRequest<FSRequestSync<fsops::Read>>);
+
+  tc->SetMethod(bridge, "fsStat", BindRequest<FSRequest<fsops::Stat>>);
+  tc->SetMethod(bridge, "fsStatSync", BindRequest<FSRequestSync<fsops::Stat>>);
+
+  tc->SetMethod(bridge, "fsLStat", BindRequest<FSRequest<fsops::LStat>>);
+  tc->SetMethod(bridge, "fsLStatSync", BindRequest<FSRequestSync<fsops::LStat>>);
+
+  tc->SetMethod(bridge, "fsFStat", BindRequest<FSRequest<fsops::FStat>>);
+  tc->SetMethod(bridge, "fsFStatSync", BindRequest<FSRequestSync<fsops::FStat>>);
+
+  assert(!tc->Get(bootstrap, "Stat").ToLocalChecked()->IsUndefined());
+  fsops::JSBridge::SetConstructor(
+    isolate,
+    tc->Get(bootstrap, "Stat").ToLocalChecked().As<v8::Function>()
+  );
+
 }
 
 }

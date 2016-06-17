@@ -53,7 +53,12 @@ void Print (const v8::FunctionCallbackInfo<Value>& info) {
   std::cout << *output;
 }
 
-void InitializeBridgeObject (ThreadContext* tc, Local<Context> context, Local<Object> bridge) {
+void InitializeBridgeObject (
+  ThreadContext* tc,
+  Local<Context> context,
+  Local<Object> bridge,
+  Local<Object> bootstrap
+) {
   Isolate* isolate = tc->GetIsolate();
   HandleScope handle_scope(isolate);
 
@@ -95,7 +100,7 @@ void InitializeBridgeObject (ThreadContext* tc, Local<Context> context, Local<Ob
 
   // bridge.print = fn
   tc->SetMethod(bridge, "print", Print);
-  FS::ContributeToBridge(tc, bridge);
+  FS::ContributeToBridge(tc, bridge, bootstrap);
   VM::ContributeToBridge(tc, bridge);
   Misc::ContributeToBridge(tc, bridge);
   Constants::ContributeToBridge(tc, bridge);
@@ -161,7 +166,7 @@ void ThreadContext::Run() {
   assert(result->IsFunction());
   Local<Function> bootstrap_function = Local<Function>::Cast(result);
 
-  i::InitializeBridgeObject(this, context, bridge);
+  i::InitializeBridgeObject(this, context, bridge, bootstrap_function);
   bootstrap_function->Call(Null(m_isolate), 1, args);
 
   {
