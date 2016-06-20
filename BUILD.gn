@@ -20,6 +20,7 @@ action("js2c") {
   script = "tools/nojs_js2c.py"
   sources = [
     "lib/main.js",
+    "lib/module.js",
     "lib/path.js",
     "lib/fs.js"
   ]
