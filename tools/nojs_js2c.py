@@ -61,6 +61,11 @@ namespace NoJS {
 }
 """
 
+def noop_filter(*args):
+    return lambda xs: xs
+
+js2c.BuildFilterChain = noop_filter
+
 def _JS2C(sources, target, native_type, raw_file, startup_blob, emit_js):
     prepared_sources = js2c.PrepareSources(sources, native_type, emit_js)
     sources_output = "".join(prepared_sources.modules)
