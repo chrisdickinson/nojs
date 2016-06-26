@@ -29,7 +29,7 @@ declare_args() {
 
   # Set to true when compiling with the Clang compiler. Typically this is used
   # to configure warnings.
-  is_clang = current_os == "mac" || current_os == "ios"
+  is_clang = current_os == "mac" || current_os == "ios" || current_os == "linux"
 
   # Allows the path to a custom target toolchain to be injected as a single
   # argument, and set as the default toolchain.
@@ -48,7 +48,11 @@ declare_args() {
 
 if (host_toolchain == "") {
   if (host_os == "linux") {
-    host_toolchain = "//build/toolchain/linux:$host_cpu"
+    if (is_clang) {
+      host_toolchain = "//build/toolchain/linux:clang_$host_cpu"
+    } else {
+      host_toolchain = "//build/toolchain/linux:$host_cpu"
+    }
   } else if (host_os == "mac") {
     host_toolchain = "//build/toolchain/mac:clang_$host_cpu"
   } else if (host_os == "win") {
@@ -59,7 +63,11 @@ if (host_toolchain == "") {
 }
 
 if (target_os == "linux") {
-  _default_toolchain = "//build/toolchain/linux:$target_cpu"
+  if (is_clang) {
+    _default_toolchain = "//build/toolchain/linux:clang_$target_cpu"
+  } else {
+    _default_toolchain = "//build/toolchain/linux:$target_cpu"
+  }
 } else if (target_os == "mac") {
   _default_toolchain = host_toolchain
 } else if (target_os == "win") {
