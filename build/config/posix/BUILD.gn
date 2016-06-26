@@ -7,7 +7,7 @@
 # that is Posix-only. Please see that target for advice on what should go in
 # :runtime_library vs. :compiler.
 config("runtime_library") {
-  if (!is_mac && sysroot != "") {
+  if (!is_mac) {
 #    # Pass the sysroot to all C compiler variants, the assembler, and linker.
 #    cflags = [ "--sysroot=" + rebase_path(sysroot, root_build_dir) ]
 #    asmflags = cflags

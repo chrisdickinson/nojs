@@ -1,6 +1,7 @@
 #ifndef NOJS_STRING_H
 #define NOJS_STRING_H
 #include "v8.h"
+#include <stdlib.h>
 
 namespace NoJS {
 
