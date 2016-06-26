@@ -134,33 +134,11 @@ skip_child_includes = [
 
 hooks = [
   {
-    # This clobbers when necessary (based on get_landmines.py). It must be the
-    # first hook so that other things that get/generate into the output
-    # directory will not subsequently be clobbered.
-    'name': 'landmines',
-    'pattern': '.',
-    'action': [
-        'python',
-        'nojs/build/landmines.py',
-    ],
-  },
-  {
     # Update the Windows toolchain if necessary.
     'name': 'win_toolchain',
     'pattern': '.',
     'action': ['python', 'nojs/build/vs_toolchain.py', 'update'],
   },
-  # Pull binutils for linux, enabled debug fission for faster linking /
-  # debugging when used with clang on Ubuntu Precise.
-  # https://code.google.com/p/chromium/issues/detail?id=352046
-  #{
-  #  'name': 'binutils',
-  #  'pattern': 'nojs/third_party/binutils',
-  #  'action': [
-  #      'python',
-  #      'nojs/third_party/binutils/download.py',
-  #  ],
-  #},
   {
     # Pull clang if needed or requested via GYP_DEFINES.
     # Note: On Win, this should run after win_toolchain, as it may use it.
@@ -234,30 +212,6 @@ hooks = [
                 '--no_auth',
                 '--bucket', 'chromium-clang-format',
                 '-s', 'nojs/buildtools/linux64/clang-format.sha1',
-    ],
-  },
-  # Pull the prebuilt libc++ static library for mac.
-  {
-    'name': 'libcpp_mac',
-    'pattern': '.',
-    'action': [ 'download_from_google_storage',
-                '--no_resume',
-                '--platform=darwin',
-                '--no_auth',
-                '--bucket', 'chromium-libcpp',
-                '-s', 'nojs/third_party/libc++-static/libc++.a.sha1',
-    ],
-  },
-  # Pull eu-strip binaries using checked-in hashes.
-  {
-    'name': 'eu-strip',
-    'pattern': '.',
-    'action': [ 'download_from_google_storage',
-                '--no_resume',
-                '--platform=linux*',
-                '--no_auth',
-                '--bucket', 'chromium-eu-strip',
-                '-s', 'nojs/build/linux/bin/eu-strip.sha1',
     ],
   },
   {
