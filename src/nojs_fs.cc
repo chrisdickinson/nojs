@@ -24,6 +24,9 @@ namespace fsops {
       REJECT,
       RESOLVE
     } kind;
+    Resolution(const Kind k, const Local<Value>& val)
+      : value(val), kind(k) {
+    }
   };
 
   template <typename Op>
@@ -57,20 +60,17 @@ namespace fsops {
       inline static Resolution OnComplete(ThreadContext* tc, uv_fs_t* raw_req) {
         if (raw_req->result < 0) {
           uv_fs_req_cleanup(raw_req);
-          return Resolution{
-            .kind=Resolution::REJECT,
-            .value=CreateError(
+          return Resolution(
+            Resolution::REJECT,
+            CreateError(
               tc->GetIsolate(),
               v8::Exception::Error,
               std::string(uv_strerror(raw_req->result))
             ).ToLocalChecked()
-          };
+          );
         }
 
-        Resolution res{
-          .kind=Resolution::RESOLVE,
-          .value=Op::Resolver::Resolve(tc, raw_req)
-        };
+        Resolution res(Resolution::RESOLVE, Op::Resolver::Resolve(tc, raw_req));
         uv_fs_req_cleanup(raw_req);
         return res;
       };

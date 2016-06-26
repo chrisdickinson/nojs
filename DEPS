@@ -24,7 +24,6 @@ vars = {
   'github_git': 'https://github.com',
   'v8_revision': 'bec1e2f78e0e2a9519b3169c0b7242c2e4b9266f',
   'libuv_revision': '9189d241c1fa3c74ad940f06ab9afeb2a45eefea',
-  'buildtools_revision': '80b5126f91be4eb359248d28696746ef09d5be67',
   'uv_link_t_revision': '0b9f0ce8d3a44f231a5a77e29ab3a0bed8de6053',
 }
 
@@ -38,9 +37,6 @@ allowed_hosts = [
 ]
 
 deps = {
-  'nojs/buildtools':
-   Var('chromium_git') + '/chromium/buildtools.git' + '@' +  Var('buildtools_revision'),
-
   'nojs/third_party/icu':
    Var('chromium_git') + '/chromium/deps/icu.git' + '@' + 'e466f6ac8f60bb9697af4a91c6911c6fc4aec95f',
 
@@ -134,33 +130,11 @@ skip_child_includes = [
 
 hooks = [
   {
-    # This clobbers when necessary (based on get_landmines.py). It must be the
-    # first hook so that other things that get/generate into the output
-    # directory will not subsequently be clobbered.
-    'name': 'landmines',
-    'pattern': '.',
-    'action': [
-        'python',
-        'nojs/build/landmines.py',
-    ],
-  },
-  {
     # Update the Windows toolchain if necessary.
     'name': 'win_toolchain',
     'pattern': '.',
     'action': ['python', 'nojs/build/vs_toolchain.py', 'update'],
   },
-  # Pull binutils for linux, enabled debug fission for faster linking /
-  # debugging when used with clang on Ubuntu Precise.
-  # https://code.google.com/p/chromium/issues/detail?id=352046
-  #{
-  #  'name': 'binutils',
-  #  'pattern': 'nojs/third_party/binutils',
-  #  'action': [
-  #      'python',
-  #      'nojs/third_party/binutils/download.py',
-  #  ],
-  #},
   {
     # Pull clang if needed or requested via GYP_DEFINES.
     # Note: On Win, this should run after win_toolchain, as it may use it.
@@ -168,97 +142,10 @@ hooks = [
     'pattern': '.',
     'action': ['python', 'nojs/tools/clang/scripts/update.py', '--if-needed'],
   },
-  # Pull GN binaries. This needs to be before running GYP below.
   {
-    'name': 'gn_win',
+    'name': 'gn',
     'pattern': '.',
-    'action': [ 'download_from_google_storage',
-                '--no_resume',
-                '--platform=win32',
-                '--no_auth',
-                '--bucket', 'chromium-gn',
-                '-s', 'nojs/buildtools/win/gn.exe.sha1',
-    ],
-  },
-  {
-    'name': 'gn_mac',
-    'pattern': '.',
-    'action': [ 'download_from_google_storage',
-                '--no_resume',
-                '--platform=darwin',
-                '--no_auth',
-                '--bucket', 'chromium-gn',
-                '-s', 'nojs/buildtools/mac/gn.sha1',
-    ],
-  },
-  {
-    'name': 'gn_linux64',
-    'pattern': '.',
-    'action': [ 'download_from_google_storage',
-                '--no_resume',
-                '--platform=linux*',
-                '--no_auth',
-                '--bucket', 'chromium-gn',
-                '-s', 'nojs/buildtools/linux64/gn.sha1',
-    ],
-  },
-  # Pull clang-format binaries using checked-in hashes.
-  {
-    'name': 'clang_format_win',
-    'pattern': '.',
-    'action': [ 'download_from_google_storage',
-                '--no_resume',
-                '--platform=win32',
-                '--no_auth',
-                '--bucket', 'chromium-clang-format',
-                '-s', 'nojs/buildtools/win/clang-format.exe.sha1',
-    ],
-  },
-  {
-    'name': 'clang_format_mac',
-    'pattern': '.',
-    'action': [ 'download_from_google_storage',
-                '--no_resume',
-                '--platform=darwin',
-                '--no_auth',
-                '--bucket', 'chromium-clang-format',
-                '-s', 'nojs/buildtools/mac/clang-format.sha1',
-    ],
-  },
-  {
-    'name': 'clang_format_linux',
-    'pattern': '.',
-    'action': [ 'download_from_google_storage',
-                '--no_resume',
-                '--platform=linux*',
-                '--no_auth',
-                '--bucket', 'chromium-clang-format',
-                '-s', 'nojs/buildtools/linux64/clang-format.sha1',
-    ],
-  },
-  # Pull the prebuilt libc++ static library for mac.
-  {
-    'name': 'libcpp_mac',
-    'pattern': '.',
-    'action': [ 'download_from_google_storage',
-                '--no_resume',
-                '--platform=darwin',
-                '--no_auth',
-                '--bucket', 'chromium-libcpp',
-                '-s', 'nojs/third_party/libc++-static/libc++.a.sha1',
-    ],
-  },
-  # Pull eu-strip binaries using checked-in hashes.
-  {
-    'name': 'eu-strip',
-    'pattern': '.',
-    'action': [ 'download_from_google_storage',
-                '--no_resume',
-                '--platform=linux*',
-                '--no_auth',
-                '--bucket', 'chromium-eu-strip',
-                '-s', 'nojs/build/linux/bin/eu-strip.sha1',
-    ],
+    'action': ['npm', 'i', 'gn'],
   },
   {
     # Ensure that while generating dependencies lists in .gyp files we don't

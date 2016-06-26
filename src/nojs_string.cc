@@ -1,5 +1,6 @@
 #include "nojs_string.h"
 #include "nojs_utils.h"
+#include <string.h>
 
 namespace NoJS {
 

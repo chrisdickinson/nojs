@@ -13,3 +13,4 @@ third_party/v8/
 tools/gyp/
 *.swp
 *.pyc
+build/linux

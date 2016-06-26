@@ -1,13 +1,3 @@
-# Copyright (c) 2013 The Chromium Authors. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
-
-import("//build/config/sysroot.gni")
-import("//build/config/mac/mac_sdk.gni")
-
-# This is included by reference in the //build/config/compiler config that
-# is applied to all targets. It is here to separate out the logic.
-#
 # This is applied to BOTH desktop Mac and iOS targets.
 config("compiler") {
   # These flags are shared between the C compiler and linker.
@@ -54,11 +44,10 @@ config("compiler") {
 # that is Mac-only. Please see that target for advice on what should go in
 # :runtime_library vs. :compiler.
 config("runtime_library") {
-  common_flags = [
-    "-isysroot",
-    sysroot,
-    "-mmacosx-version-min=$mac_deployment_target",
-  ]
+  common_flags = []
+  # [
+  #  "-mmacosx-version-min=$mac_deployment_target",
+  #]
 
   asmflags = common_flags
   cflags = common_flags
