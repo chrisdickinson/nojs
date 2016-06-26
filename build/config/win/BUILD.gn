@@ -1,10 +1,5 @@
-# Copyright (c) 2013 The Chromium Authors. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
-
 import("//build/config/compiler/compiler.gni")
-import("//build/config/sanitizers/sanitizers.gni")
-import("//build/config/win/visual_studio_version.gni")
+import("//build/config/compiler/visual_studio_version.gni")
 
 assert(is_win)
 
@@ -54,44 +49,6 @@ config("compiler") {
       # and -fno-threadsafe-statics.
       "/Zc:threadSafeInit-",
     ]
-  }
-
-  # Building with Clang on Windows is a work in progress and very
-  # experimental. See crbug.com/82385.
-  # Keep this in sync with the similar block in build/common.gypi
-  if (is_clang) {
-    cflags += [
-      # Many files use intrinsics without including this header.
-      # TODO(hans): Fix those files, or move this to sub-GYPs.
-      "/FIIntrin.h",
-    ]
-
-    if (visual_studio_version == "2013") {
-      cflags += [ "-fmsc-version=1800" ]
-    } else if (visual_studio_version == "2015") {
-      cflags += [ "-fmsc-version=1900" ]
-    }
-
-    if (current_cpu == "x86") {
-      cflags += [ "-m32" ]
-    } else {
-      cflags += [ "-m64" ]
-    }
-
-    if (exec_script("//build/win/use_ansi_codes.py", [], "trim string") ==
-        "True") {
-      cflags += [
-        # cmd.exe doesn't understand ANSI escape codes by default,
-        # so only enable them if something emulating them is around.
-        "-fansi-escape-codes",
-      ]
-    }
-  }
-
-  if (is_syzyasan) {
-    # SyzyAsan needs /PROFILE turned on to produce appropriate pdbs.
-    assert(!is_win_fastlink, "/PROFILE and /DEBUG:FASTLINK are incompatible")
-    ldflags = [ "/PROFILE" ]
   }
 }
 
@@ -205,31 +162,6 @@ config("winver") {
   ]
 }
 
-# Linker flags for Windows SDK setup, this is applied only to EXEs and DLLs.
-config("sdk_link") {
-  if (current_cpu == "x64") {
-    ldflags = [ "/MACHINE:X64" ]
-    lib_dirs = [
-      "$windows_sdk_path\Lib\winv6.3\um\x64",
-      "$visual_studio_path\VC\lib\amd64",
-      "$visual_studio_path\VC\atlmfc\lib\amd64",
-    ]
-  } else {
-    ldflags = [
-      "/MACHINE:X86",
-      "/SAFESEH",  # Not compatible with x64 so use only for x86.
-    ]
-    lib_dirs = [
-      "$windows_sdk_path\Lib\winv6.3\um\x86",
-      "$visual_studio_path\VC\lib",
-      "$visual_studio_path\VC\atlmfc\lib",
-    ]
-    if (!is_syzyasan) {
-      ldflags += [ "/largeaddressaware" ]
-    }
-  }
-}
-
 # This default linker setup is provided separately from the SDK setup so
 # targets who want different library configurations can remove this and specify
 # their own.
@@ -268,8 +200,6 @@ config("common_linker_setup") {
   ]
 }
 
-# Subsystem --------------------------------------------------------------------
-
 # This is appended to the subsystem to specify a minimum version.
 if (current_cpu == "x64") {
   # The number after the comma is the minimum required OS version.
@@ -282,9 +212,6 @@ if (current_cpu == "x64") {
 
 config("console") {
   ldflags = [ "/SUBSYSTEM:CONSOLE$subsystem_version_suffix" ]
-}
-config("windowed") {
-  ldflags = [ "/SUBSYSTEM:WINDOWS$subsystem_version_suffix" ]
 }
 
 # Incremental linking ----------------------------------------------------------
@@ -308,20 +235,6 @@ config("incremental_linking") {
 }
 config("no_incremental_linking") {
   ldflags = incremental_linking_off_switch
-}
-
-# Some large modules can't handle incremental linking in some situations. This
-# config should be applied to large modules to turn off incremental linking
-# when it won't work.
-config("default_large_module_incremental_linking") {
-  if (symbol_level > 0 && (current_cpu == "x86" || !is_component_build)) {
-    # When symbols are on, things get so large that the tools fail due to the
-    # size of the .ilk files.
-    ldflags = incremental_linking_off_switch
-  } else {
-    # Otherwise just do the default incremental linking for this build type.
-    ldflags = default_incremental_linking_switch
-  }
 }
 
 # Character set ----------------------------------------------------------------
@@ -353,27 +266,3 @@ config("nominmax") {
   defines = [ "NOMINMAX" ]
 }
 
-# Target WinRT ----------------------------------------------------------------
-
-# When targeting Windows Runtime, certain compiler/linker flags are necessary.
-
-config("target_winrt") {
-  defines = [
-    "WINRT",
-    "WINAPI_FAMILY=WINAPI_FAMILY_PC_APP",
-  ]
-  cflags_cc = [
-    "/ZW",
-    "/EHsc",
-  ]
-}
-
-# Internal stuff --------------------------------------------------------------
-
-# Config used by the MIDL template to disable warnings.
-config("midl_warnings") {
-  if (is_clang) {
-    # MIDL generates code like "#endif !_MIDL_USE_GUIDDEF_".
-    cflags = [ "-Wno-extra-tokens" ]
-  }
-}
