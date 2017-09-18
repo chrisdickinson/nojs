@@ -22,7 +22,7 @@ vars = {
   'googlecode_url': 'http://%s.googlecode.com/svn',
   'chromium_git': 'https://chromium.googlesource.com',
   'github_git': 'https://github.com',
-  'v8_revision': 'bec1e2f78e0e2a9519b3169c0b7242c2e4b9266f',
+  'v8_revision': 'dd6ba785e1081ab3c0e0cdcbd312e2c5a1c101dc',
   'libuv_revision': '9189d241c1fa3c74ad940f06ab9afeb2a45eefea',
   'uv_link_t_revision': '0b9f0ce8d3a44f231a5a77e29ab3a0bed8de6053',
 }

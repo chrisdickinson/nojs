@@ -9,3 +9,6 @@
 # requires 10.7.
 mac_sdk_min_build_override = "10.10"
 mac_deployment_target_build_override = "10.6"
+use_system_xcode = true
+ignore_elf32_limitations = false
+linux_use_bundled_binutils_override = true

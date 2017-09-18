@@ -1,5 +1,12 @@
+# Copyright (c) 2013 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/config/clang/clang.gni")
 import("//build/config/compiler/compiler.gni")
-import("//build/config/compiler/visual_studio_version.gni")
+import("//build/config/sanitizers/sanitizers.gni")
+import("//build/config/win/visual_studio_version.gni")
+import("//build/toolchain/toolchain.gni")
 
 assert(is_win)
 
@@ -9,6 +16,9 @@ declare_args() {
   # warnings, so normally this is done on a build machine and only the new
   # warnings are examined.
   use_vs_code_analysis = false
+
+  # Turn this on to have the linker output extra timing information.
+  win_linker_timing = false
 }
 
 # This is included by reference in the //build/config/compiler config that
@@ -28,7 +38,6 @@ config("compiler") {
 
   cflags = [
     "/Gy",  # Enable function-level linking.
-    "/GS",  # Enable buffer security checking.
     "/FS",  # Preserve previous PDB behavior.
     "/bigobj",  # Some of our files are bigger than the regular limits.
   ]
@@ -39,21 +48,82 @@ config("compiler") {
   cflags_c = [ "/TC" ]
   cflags_cc = [ "/TP" ]
 
-  if (visual_studio_version == "2015") {
-    cflags += [
-      # Work around crbug.com/526851, bug in VS 2015 RTM compiler.
-      "/Zc:sizedDealloc-",
+  cflags += [
+    # Tell the compiler to crash on failures. This is undocumented
+    # and unsupported but very handy.
+    "/d2FastFail",
 
-      # Disable thread-safe statics to avoid overhead and because
-      # they are disabled on other platforms. See crbug.com/587210
-      # and -fno-threadsafe-statics.
-      "/Zc:threadSafeInit-",
-    ]
+    # Work around crbug.com/526851, bug in VS 2015 RTM compiler.
+    "/Zc:sizedDealloc-",
+  ]
+
+  # Building with Clang on Windows is a work in progress and very
+  # experimental. See crbug.com/82385.
+  if (is_clang) {
+    cflags += [ "-fmsc-version=1900" ]
+
+    if (current_cpu == "x86") {
+      cflags += [ "-m32" ]
+    } else {
+      cflags += [ "-m64" ]
+    }
+
+    if (exec_script("//build/win/use_ansi_codes.py", [], "trim string") ==
+        "True") {
+      cflags += [
+        # cmd.exe doesn't understand ANSI escape codes by default,
+        # so only enable them if something emulating them is around.
+        "-fansi-escape-codes",
+      ]
+    }
+
+    # Clang runtime libraries, such as the sanitizer runtimes, live here.
+    lib_dirs = [ "$clang_base_path/lib/clang/$clang_version/lib/windows" ]
   }
+
+  # /PROFILE ensures that the PDB file contains FIXUP information (growing the
+  # PDB file by about 5%) but does not otherwise alter the output binary. This
+  # information is used by the Syzygy optimization tool when decomposing the
+  # release image. It is enabled for syzyasan builds and opportunistically for
+  # other builds where it is not prohibited (not supported when incrementally
+  # linking, or using /debug:fastlink).
+  if (is_syzyasan) {
+    assert(!is_win_fastlink)
+    ldflags = [ "/PROFILE" ]
+  } else {
+    if (!is_debug && !is_component_build) {
+      if (is_win_fastlink) {
+        # /PROFILE implies the following linker flags. Therefore if we are
+        # skipping /PROFILE because it is incompatible with /DEBUG:FASTLINK
+        # we should explicitly add these flags in order to avoid unintended
+        # consequences such as larger binaries.
+        ldflags = [
+          "/OPT:REF",
+          "/OPT:ICF",
+          "/INCREMENTAL:NO",
+          "/FIXED:NO",
+        ]
+      } else {
+        ldflags = [ "/PROFILE" ]
+      }
+    }
+  }
+
+  # arflags apply only to static_libraries. The normal linker configs are only
+  # set for executable and shared library targets so arflags must be set
+  # elsewhere. Since this is relatively contained, we just apply them in this
+  # more general config and they will only have an effect on static libraries.
+  arflags = [
+    # "No public symbols found; archive member will be inaccessible." This
+    # means that one or more object files in the library can never be
+    # pulled in to targets that link to this library. It's just a warning that
+    # the source file is a no-op.
+    "/ignore:4221",
+  ]
 }
 
 config("vs_code_analysis") {
-  if (use_vs_code_analysis) {
+  if (use_vs_code_analysis && !is_clang) {
     # When use_vs_code_analysis is specified add the /analyze switch to enable
     # static analysis. Specifying /analyze:WX- says that /analyze warnings
     # should not be treated as errors.
@@ -113,7 +183,6 @@ config("runtime_library") {
     "_ATL_NO_OPENGL",
     "_WINDOWS",
     "CERT_CHAIN_PARA_HAS_EXTRA_FIELDS",
-    "NTDDI_VERSION=0x0A000000",
     "PSAPI_VERSION=1",
     "WIN32",
     "_SECURE_ATL",
@@ -124,42 +193,39 @@ config("runtime_library") {
     # However it is prohibited when using /analyze
     defines += [ "_USING_V110_SDK71_" ]
   }
-
-  if (is_component_build) {
-    # Component mode: dynamic CRT. Since the library is shared, it requires
-    # exceptions or will give errors about things not matching, so keep
-    # exceptions on.
-    if (is_debug) {
-      cflags += [ "/MDd" ]
-    } else {
-      cflags += [ "/MD" ]
-    }
-  } else {
-    if (current_os != "win") {
-      # WindowsRT: use the dynamic CRT.
-      if (is_debug) {
-        cflags += [ "/MDd" ]
-      } else {
-        cflags += [ "/MD" ]
-      }
-    } else {
-      # Desktop Windows: static CRT.
-      if (is_debug) {
-        cflags += [ "/MTd" ]
-      } else {
-        cflags += [ "/MT" ]
-      }
-    }
-  }
 }
 
 # Sets the default Windows build version. This is separated because some
 # targets need to manually override it for their compiles.
 config("winver") {
   defines = [
+    "NTDDI_VERSION=0x0A000000",
     "_WIN32_WINNT=0x0A00",
     "WINVER=0x0A00",
   ]
+}
+
+# Linker flags for Windows SDK setup, this is applied only to EXEs and DLLs.
+config("sdk_link") {
+  if (current_cpu == "x64") {
+    ldflags = [ "/MACHINE:X64" ]
+    lib_dirs = [
+      "$windows_sdk_path\Lib\winv6.3\um\x64",
+      "$visual_studio_path\VC\lib\amd64",
+      "$visual_studio_path\VC\atlmfc\lib\amd64",
+    ]
+  } else {
+    ldflags = [
+      "/MACHINE:X86",
+      "/SAFESEH",  # Not compatible with x64 so use only for x86.
+      "/largeaddressaware",
+    ]
+    lib_dirs = [
+      "$windows_sdk_path\Lib\winv6.3\um\x86",
+      "$visual_studio_path\VC\lib",
+      "$visual_studio_path\VC\atlmfc\lib",
+    ]
+  }
 }
 
 # This default linker setup is provided separately from the SDK setup so
@@ -167,16 +233,11 @@ config("winver") {
 # their own.
 config("common_linker_setup") {
   ldflags = [
+    "/fastfail",
     "/FIXED:NO",
     "/ignore:4199",
     "/ignore:4221",
     "/NXCOMPAT",
-
-    # Suggested by Microsoft Devrel to avoid
-    #   LINK : fatal error LNK1248: image size (80000000)
-    #   exceeds maximum allowable size (80000000)
-    # which started happening more regularly after VS2013 Update 4.
-    "/maxilksize:2147483647",
   ]
 
   # ASLR makes debugging with windbg difficult because Chrome.exe and
@@ -191,14 +252,79 @@ config("common_linker_setup") {
     ldflags += [ "/DYNAMICBASE" ]
   }
 
-  # Delay loaded DLLs.
-  ldflags += [
-    "/DELAYLOAD:dbghelp.dll",
-    "/DELAYLOAD:dwmapi.dll",
-    "/DELAYLOAD:shell32.dll",
-    "/DELAYLOAD:uxtheme.dll",
-  ]
+  if (win_linker_timing) {
+    ldflags += [
+      "/time",
+      "/verbose:incr",
+    ]
+  }
 }
+
+config("cfi_linker") {
+  # Control Flow Guard (CFG)
+  # https://msdn.microsoft.com/en-us/library/windows/desktop/mt637065.aspx
+  # /DYNAMICBASE (ASLR) is turned off in debug builds, therefore CFG can’t be
+  # turned on either.
+  # TODO(thakis): Turn this on with lld once supported, https://crbug.com/693709
+  if (!is_debug && !use_lld) {
+    # Turn on CFG in msvc linker, regardless of compiler used.
+    ldflags = [ "/guard:cf" ]
+  }
+}
+
+# CRT --------------------------------------------------------------------------
+
+# Configures how the runtime library (CRT) is going to be used.
+# See https://msdn.microsoft.com/en-us/library/2kzt1wy3.aspx for a reference of
+# what each value does.
+config("default_crt") {
+  if (is_component_build) {
+    # Component mode: dynamic CRT. Since the library is shared, it requires
+    # exceptions or will give errors about things not matching, so keep
+    # exceptions on.
+    configs = [ ":dynamic_crt" ]
+  } else {
+    if (current_os != "win") {
+      # WindowsRT: use the dynamic CRT.
+      configs = [ ":dynamic_crt" ]
+    } else {
+      # Desktop Windows: static CRT.
+      configs = [ ":static_crt" ]
+    }
+  }
+}
+
+# Use this to force the debug CRT for when building perf-critical build tools
+# that need to be fully optimized even in debug builds, for those times when the
+# debug CRT is part of the bottleneck. This also avoids *implicitly* defining
+# _DEBUG.
+config("release_crt") {
+  if (is_component_build) {
+    cflags = [ "/MD" ]
+  } else {
+    cflags = [ "/MT" ]
+  }
+}
+
+config("dynamic_crt") {
+  if (is_debug) {
+    # This pulls in the DLL debug CRT and defines _DEBUG
+    cflags = [ "/MDd" ]
+  } else {
+    cflags = [ "/MD" ]
+  }
+}
+
+config("static_crt") {
+  if (is_debug) {
+    # This pulls in the static debug CRT and defines _DEBUG
+    cflags = [ "/MTd" ]
+  } else {
+    cflags = [ "/MT" ]
+  }
+}
+
+# Subsystem --------------------------------------------------------------------
 
 # This is appended to the subsystem to specify a minimum version.
 if (current_cpu == "x64") {
@@ -213,12 +339,18 @@ if (current_cpu == "x64") {
 config("console") {
   ldflags = [ "/SUBSYSTEM:CONSOLE$subsystem_version_suffix" ]
 }
+config("windowed") {
+  ldflags = [ "/SUBSYSTEM:WINDOWS$subsystem_version_suffix" ]
+}
 
 # Incremental linking ----------------------------------------------------------
 
 incremental_linking_on_switch = [ "/INCREMENTAL" ]
 incremental_linking_off_switch = [ "/INCREMENTAL:NO" ]
-if (is_debug) {
+
+# Disable incremental linking for syzyasan, enable for debug builds and all
+# component builds - any builds where performance is not job one.
+if ((is_debug || is_component_build) && !is_syzyasan) {
   default_incremental_linking_switch = incremental_linking_on_switch
 } else {
   default_incremental_linking_switch = incremental_linking_off_switch
@@ -237,6 +369,19 @@ config("no_incremental_linking") {
   ldflags = incremental_linking_off_switch
 }
 
+# Some large modules can't handle incremental linking in some situations. This
+# config should be applied to large modules to turn off incremental linking
+# when it won't work.
+config("default_large_module_incremental_linking") {
+  if (symbol_level == 0 || (current_cpu == "x86" && is_component_build)) {
+    # In these configurations, ilk file sizes stay low enough that we can
+    # link incrementally.
+    ldflags = default_incremental_linking_switch
+  } else {
+    ldflags = incremental_linking_off_switch
+  }
+}
+
 # Character set ----------------------------------------------------------------
 
 # Not including this config means "ansi" (8-bit system codepage).
@@ -251,7 +396,7 @@ config("unicode") {
 
 # Some third party code might not compile with WIN32_LEAN_AND_MEAN so we have
 # to have a separate config for it. Remove this config from your target to
-# get the "bloaty and accomodating" version of windows.h.
+# get the "bloaty and accommodating" version of windows.h.
 config("lean_and_mean") {
   defines = [ "WIN32_LEAN_AND_MEAN" ]
 }
@@ -266,3 +411,27 @@ config("nominmax") {
   defines = [ "NOMINMAX" ]
 }
 
+# Target WinRT ----------------------------------------------------------------
+
+# When targeting Windows Runtime, certain compiler/linker flags are necessary.
+
+config("target_winrt") {
+  defines = [
+    "WINRT",
+    "WINAPI_FAMILY=WINAPI_FAMILY_PC_APP",
+  ]
+  cflags_cc = [
+    "/ZW",
+    "/EHsc",
+  ]
+}
+
+# Internal stuff --------------------------------------------------------------
+
+# Config used by the MIDL template to disable warnings.
+config("midl_warnings") {
+  if (is_clang) {
+    # MIDL generates code like "#endif !_MIDL_USE_GUIDDEF_".
+    cflags = [ "-Wno-extra-tokens" ]
+  }
+}

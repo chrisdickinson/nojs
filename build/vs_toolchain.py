@@ -7,7 +7,10 @@ import glob
 import json
 import os
 import pipes
+import platform
+import re
 import shutil
+import stat
 import subprocess
 import sys
 
@@ -19,17 +22,16 @@ sys.path.insert(0, os.path.join(chrome_src, 'tools', 'gyp', 'pylib'))
 json_data_file = os.path.join(script_dir, 'win_toolchain.json')
 
 
-import gyp
-
-
-# Use MSVS2013 as the default toolchain.
-CURRENT_DEFAULT_TOOLCHAIN_VERSION = '2013'
+# Use MSVS2017 as the default toolchain.
+CURRENT_DEFAULT_TOOLCHAIN_VERSION = '2017'
 
 
 def SetEnvironmentAndGetRuntimeDllDirs():
   """Sets up os.environ to use the depot_tools VS toolchain with gyp, and
   returns the location of the VS runtime DLLs so they can be copied into
   the output directory after gyp generation.
+
+  Return value is [x64path, x86path] or None
   """
   vs_runtime_dll_dirs = None
   depot_tools_win_toolchain = \
@@ -50,12 +52,18 @@ def SetEnvironmentAndGetRuntimeDllDirs():
       win_sdk = toolchain_data['win8sdk']
     wdk = toolchain_data['wdk']
     # TODO(scottmg): The order unfortunately matters in these. They should be
-    # split into separate keys for x86 and x64. (See CopyVsRuntimeDlls call
-    # below). http://crbug.com/345992
+    # split into separate keys for x86 and x64. (See CopyDlls call below).
+    # http://crbug.com/345992
     vs_runtime_dll_dirs = toolchain_data['runtime_dirs']
 
     os.environ['GYP_MSVS_OVERRIDE_PATH'] = toolchain
     os.environ['GYP_MSVS_VERSION'] = version
+
+    # Limit the scope of the gyp import to only where it is used. This
+    # potentially lets build configs that never execute this block to drop
+    # their GYP checkout.
+    import gyp
+
     # We need to make sure windows_sdk_path is set to the automated
     # toolchain values in GYP_DEFINES, but don't want to override any
     # otheroptions.express
@@ -64,6 +72,7 @@ def SetEnvironmentAndGetRuntimeDllDirs():
     gyp_defines_dict['windows_sdk_path'] = win_sdk
     os.environ['GYP_DEFINES'] = ' '.join('%s=%s' % (k, pipes.quote(str(v)))
         for k, v in gyp_defines_dict.iteritems())
+
     os.environ['WINDOWSSDKDIR'] = win_sdk
     os.environ['WDK_DIR'] = wdk
     # Include the VS runtime in the PATH in case it's not machine-installed.
@@ -74,6 +83,16 @@ def SetEnvironmentAndGetRuntimeDllDirs():
       os.environ['GYP_MSVS_OVERRIDE_PATH'] = DetectVisualStudioPath()
     if not 'GYP_MSVS_VERSION' in os.environ:
       os.environ['GYP_MSVS_VERSION'] = GetVisualStudioVersion()
+
+    # When using an installed toolchain these files aren't needed in the output
+    # directory in order to run binaries locally, but they are needed in order
+    # to create isolates or the mini_installer. Copying them to the output
+    # directory ensures that they are available when needed.
+    bitness = platform.architecture()[0]
+    # When running 64-bit python the x64 DLLs will be in System32
+    x64_path = 'System32' if bitness == '64bit' else 'Sysnative'
+    x64_path = os.path.join(r'C:\Windows', x64_path)
+    vs_runtime_dll_dirs = [x64_path, r'C:\Windows\SysWOW64']
 
   return vs_runtime_dll_dirs
 
@@ -119,64 +138,62 @@ def DetectVisualStudioPath():
   # build/toolchain/win/setup_toolchain.py as well.
   version_as_year = GetVisualStudioVersion()
   year_to_version = {
-      '2013': '12.0',
       '2015': '14.0',
+      '2017': '15.0',
   }
   if version_as_year not in year_to_version:
     raise Exception(('Visual Studio version %s (from GYP_MSVS_VERSION)'
                      ' not supported. Supported versions are: %s') % (
                        version_as_year, ', '.join(year_to_version.keys())))
   version = year_to_version[version_as_year]
-  keys = [r'HKLM\Software\Microsoft\VisualStudio\%s' % version,
-          r'HKLM\Software\Wow6432Node\Microsoft\VisualStudio\%s' % version]
-  for key in keys:
-    path = _RegistryGetValue(key, 'InstallDir')
-    if not path:
-      continue
-    path = os.path.normpath(os.path.join(path, '..', '..'))
-    return path
+  if version_as_year == '2017':
+    # The VC++ 2017 install location needs to be located using COM instead of
+    # the registry. For details see:
+    # https://blogs.msdn.microsoft.com/heaths/2016/09/15/changes-to-visual-studio-15-setup/
+    # For now we use a hardcoded default with an environment variable override.
+    for path in (
+        os.environ.get('vs2017_install'),
+        r'C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional',
+        r'C:\Program Files (x86)\Microsoft Visual Studio\2017\Community'):
+      if path and os.path.exists(path):
+        return path
+  else:
+    keys = [r'HKLM\Software\Microsoft\VisualStudio\%s' % version,
+            r'HKLM\Software\Wow6432Node\Microsoft\VisualStudio\%s' % version]
+    for key in keys:
+      path = _RegistryGetValue(key, 'InstallDir')
+      if not path:
+        continue
+      path = os.path.normpath(os.path.join(path, '..', '..'))
+      return path
 
   raise Exception(('Visual Studio Version %s (from GYP_MSVS_VERSION)'
                    ' not found.') % (version_as_year))
 
 
-def _VersionNumber():
-  """Gets the standard version number ('120', '140', etc.) based on
-  GYP_MSVS_VERSION."""
-  vs_version = GetVisualStudioVersion()
-  if vs_version == '2013':
-    return '120'
-  elif vs_version == '2015':
-    return '140'
-  else:
-    raise ValueError('Unexpected GYP_MSVS_VERSION')
-
-
 def _CopyRuntimeImpl(target, source, verbose=True):
-  """Copy |source| to |target| if it doesn't already exist or if it
-  needs to be updated.
+  """Copy |source| to |target| if it doesn't already exist or if it needs to be
+  updated (comparing last modified time as an approximate float match as for
+  some reason the values tend to differ by ~1e-07 despite being copies of the
+  same file... https://crbug.com/603603).
   """
   if (os.path.isdir(os.path.dirname(target)) and
       (not os.path.isfile(target) or
-      os.stat(target).st_mtime != os.stat(source).st_mtime)):
+       abs(os.stat(target).st_mtime - os.stat(source).st_mtime) >= 0.01)):
     if verbose:
       print 'Copying %s to %s...' % (source, target)
     if os.path.exists(target):
+      # Make the file writable so that we can delete it now, and keep it
+      # readable.
+      os.chmod(target, stat.S_IWRITE | stat.S_IREAD)
       os.unlink(target)
     shutil.copy2(source, target)
+    # Make the file writable so that we can overwrite or delete it later,
+    # keep it readable.
+    os.chmod(target, stat.S_IWRITE | stat.S_IREAD)
 
 
-def _CopyRuntime2013(target_dir, source_dir, dll_pattern):
-  """Copy both the msvcr and msvcp runtime DLLs, only if the target doesn't
-  exist, but the target directory does exist."""
-  for file_part in ('p', 'r'):
-    dll = dll_pattern % file_part
-    target = os.path.join(target_dir, dll)
-    source = os.path.join(source_dir, dll)
-    _CopyRuntimeImpl(target, source)
-
-
-def _CopyRuntime2015(target_dir, source_dir, dll_pattern, suffix):
+def _CopyUCRTRuntime(target_dir, source_dir, target_cpu, dll_pattern, suffix):
   """Copy both the msvcp and vccorlib runtime DLLs, only if the target doesn't
   exist, but the target directory does exist."""
   for file_part in ('msvcp', 'vccorlib', 'vcruntime'):
@@ -184,9 +201,19 @@ def _CopyRuntime2015(target_dir, source_dir, dll_pattern, suffix):
     target = os.path.join(target_dir, dll)
     source = os.path.join(source_dir, dll)
     _CopyRuntimeImpl(target, source)
-  ucrt_src_dir = os.path.join(source_dir, 'api-ms-win-*.dll')
-  print 'Copying %s to %s...' % (ucrt_src_dir, target_dir)
-  for ucrt_src_file in glob.glob(ucrt_src_dir):
+  # Copy the UCRT files needed by VS 2015 from the Windows SDK. This location
+  # includes the api-ms-win-crt-*.dll files that are not found in the Windows
+  # directory. These files are needed for component builds.
+  # If WINDOWSSDKDIR is not set use the default SDK path. This will be the case
+  # when DEPOT_TOOLS_WIN_TOOLCHAIN=0 and vcvarsall.bat has not been run.
+  win_sdk_dir = os.path.normpath(
+      os.environ.get('WINDOWSSDKDIR',
+                     'C:\\Program Files (x86)\\Windows Kits\\10'))
+  ucrt_dll_dirs = os.path.join(win_sdk_dir, 'Redist', 'ucrt', 'DLLs',
+                               target_cpu)
+  ucrt_files = glob.glob(os.path.join(ucrt_dll_dirs, 'api-ms-win-*.dll'))
+  assert len(ucrt_files) > 0
+  for ucrt_src_file in ucrt_files:
     file_part = os.path.basename(ucrt_src_file)
     ucrt_dst_file = os.path.join(target_dir, file_part)
     _CopyRuntimeImpl(ucrt_dst_file, ucrt_src_file, False)
@@ -194,62 +221,72 @@ def _CopyRuntime2015(target_dir, source_dir, dll_pattern, suffix):
                     os.path.join(source_dir, 'ucrtbase' + suffix))
 
 
+def FindVCToolsRoot():
+  """In VS2017 the PGO runtime dependencies are located in
+  {toolchain_root}/VC/Tools/MSVC/{x.y.z}/bin/Host{target_cpu}/{target_cpu}/, the
+  {version_number} part is likely to change in case of a minor update of the
+  toolchain so we don't hardcode this value here (except for the major number).
+
+  This returns the '{toolchain_root}/VC/Tools/MSVC/{x.y.z}/bin/' path.
+
+  This function should only be called when using VS2017.
+  """
+  assert GetVisualStudioVersion() == '2017'
+  SetEnvironmentAndGetRuntimeDllDirs()
+  assert ('GYP_MSVS_OVERRIDE_PATH' in os.environ)
+  vc_tools_msvc_root = os.path.join(os.environ['GYP_MSVS_OVERRIDE_PATH'],
+      'VC', 'Tools', 'MSVC')
+  for directory in os.listdir(vc_tools_msvc_root):
+    if not os.path.isdir(os.path.join(vc_tools_msvc_root, directory)):
+      continue
+    if re.match('14\.\d+\.\d+', directory):
+      return os.path.join(vc_tools_msvc_root, directory, 'bin')
+  raise Exception('Unable to find the VC tools directory.')
+
+
+def _CopyPGORuntime(target_dir, target_cpu):
+  """Copy the runtime dependencies required during a PGO build.
+  """
+  env_version = GetVisualStudioVersion()
+  # These dependencies will be in a different location depending on the version
+  # of the toolchain.
+  if env_version == '2015':
+    pgo_x86_runtime_dir = os.path.join(os.environ.get('GYP_MSVS_OVERRIDE_PATH'),
+                                       'VC', 'bin')
+    pgo_x64_runtime_dir = os.path.join(pgo_x86_runtime_dir, 'amd64')
+  elif env_version == '2017':
+    pgo_runtime_root = FindVCToolsRoot()
+    assert pgo_runtime_root
+    # There's no version of pgosweep.exe in HostX64/x86, so we use the copy
+    # from HostX86/x86.
+    pgo_x86_runtime_dir = os.path.join(pgo_runtime_root, 'HostX86', 'x86')
+    pgo_x64_runtime_dir = os.path.join(pgo_runtime_root, 'HostX64', 'x64')
+  else:
+    raise Exception('Unexpected toolchain version: %s.' % env_version)
+
+  # We need to copy 2 runtime dependencies used during the profiling step:
+  #     - pgort140.dll: runtime library required to run the instrumented image.
+  #     - pgosweep.exe: executable used to collect the profiling data
+  pgo_runtimes = ['pgort140.dll', 'pgosweep.exe']
+  for runtime in pgo_runtimes:
+    if target_cpu == 'x86':
+      source = os.path.join(pgo_x86_runtime_dir, runtime)
+    elif target_cpu == 'x64':
+      source = os.path.join(pgo_x64_runtime_dir, runtime)
+    else:
+      raise NotImplementedError("Unexpected target_cpu value: " + target_cpu)
+    if not os.path.exists(source):
+      raise Exception('Unable to find %s.' % source)
+    _CopyRuntimeImpl(os.path.join(target_dir, runtime), source)
+
+
 def _CopyRuntime(target_dir, source_dir, target_cpu, debug):
   """Copy the VS runtime DLLs, only if the target doesn't exist, but the target
-  directory does exist. Handles VS 2013 and VS 2015."""
+  directory does exist. Handles VS 2015 and VS 2017."""
   suffix = "d.dll" if debug else ".dll"
-  if GetVisualStudioVersion() == '2015':
-    _CopyRuntime2015(target_dir, source_dir, '%s140' + suffix, suffix)
-  else:
-    _CopyRuntime2013(target_dir, source_dir, 'msvc%s120' + suffix)
-
-  # Copy the PGO runtime library to the release directories.
-  if not debug and os.environ.get('GYP_MSVS_OVERRIDE_PATH'):
-    pgo_x86_runtime_dir = os.path.join(os.environ.get('GYP_MSVS_OVERRIDE_PATH'),
-                                        'VC', 'bin')
-    pgo_x64_runtime_dir = os.path.join(pgo_x86_runtime_dir, 'amd64')
-    pgo_runtime_dll = 'pgort' + _VersionNumber() + '.dll'
-    if target_cpu == "x86":
-      source_x86 = os.path.join(pgo_x86_runtime_dir, pgo_runtime_dll)
-      if os.path.exists(source_x86):
-        _CopyRuntimeImpl(os.path.join(target_dir, pgo_runtime_dll), source_x86)
-    elif target_cpu == "x64":
-      source_x64 = os.path.join(pgo_x64_runtime_dir, pgo_runtime_dll)
-      if os.path.exists(source_x64):
-        _CopyRuntimeImpl(os.path.join(target_dir, pgo_runtime_dll),
-                          source_x64)
-    else:
-      raise NotImplementedError("Unexpected target_cpu value:" + target_cpu)
-
-
-def CopyVsRuntimeDlls(output_dir, runtime_dirs):
-  """Copies the VS runtime DLLs from the given |runtime_dirs| to the output
-  directory so that even if not system-installed, built binaries are likely to
-  be able to run.
-
-  This needs to be run after gyp has been run so that the expected target
-  output directories are already created.
-
-  This is used for the GYP build and gclient runhooks.
-  """
-  x86, x64 = runtime_dirs
-  out_debug = os.path.join(output_dir, 'Debug')
-  out_debug_nacl64 = os.path.join(output_dir, 'Debug', 'x64')
-  out_release = os.path.join(output_dir, 'Release')
-  out_release_nacl64 = os.path.join(output_dir, 'Release', 'x64')
-  out_debug_x64 = os.path.join(output_dir, 'Debug_x64')
-  out_release_x64 = os.path.join(output_dir, 'Release_x64')
-
-  if os.path.exists(out_debug) and not os.path.exists(out_debug_nacl64):
-    os.makedirs(out_debug_nacl64)
-  if os.path.exists(out_release) and not os.path.exists(out_release_nacl64):
-    os.makedirs(out_release_nacl64)
-  _CopyRuntime(out_debug,          x86, "x86", debug=True)
-  _CopyRuntime(out_release,        x86, "x86", debug=False)
-  _CopyRuntime(out_debug_x64,      x64, "x64", debug=True)
-  _CopyRuntime(out_release_x64,    x64, "x64", debug=False)
-  _CopyRuntime(out_debug_nacl64,   x64, "x64", debug=True)
-  _CopyRuntime(out_release_nacl64, x64, "x64", debug=False)
+  # VS 2017 uses the same CRT DLLs as VS 2015.
+  _CopyUCRTRuntime(target_dir, source_dir, target_cpu, '%s140' + suffix,
+                    suffix)
 
 
 def CopyDlls(target_dir, configuration, target_cpu):
@@ -260,8 +297,6 @@ def CopyDlls(target_dir, configuration, target_cpu):
 
   The debug configuration gets both the debug and release DLLs; the
   release config only the latter.
-
-  This is used for the GN build.
   """
   vs_runtime_dll_dirs = SetEnvironmentAndGetRuntimeDllDirs()
   if not vs_runtime_dll_dirs:
@@ -272,17 +307,56 @@ def CopyDlls(target_dir, configuration, target_cpu):
   _CopyRuntime(target_dir, runtime_dir, target_cpu, debug=False)
   if configuration == 'Debug':
     _CopyRuntime(target_dir, runtime_dir, target_cpu, debug=True)
+  else:
+    _CopyPGORuntime(target_dir, target_cpu)
+
+  _CopyDebugger(target_dir, target_cpu)
+
+
+def _CopyDebugger(target_dir, target_cpu):
+  """Copy dbghelp.dll and dbgcore.dll into the requested directory as needed.
+
+  target_cpu is one of 'x86' or 'x64'.
+
+  dbghelp.dll is used when Chrome needs to symbolize stacks. Copying this file
+  from the SDK directory avoids using the system copy of dbghelp.dll which then
+  ensures compatibility with recent debug information formats, such as VS
+  2017 /debug:fastlink PDBs.
+
+  dbgcore.dll is needed when using some functions from dbghelp.dll (like
+  MinidumpWriteDump).
+  """
+  win_sdk_dir = SetEnvironmentAndGetSDKDir()
+  if not win_sdk_dir:
+    return
+
+  # List of debug files that should be copied, the first element of the tuple is
+  # the name of the file and the second indicates if it's optional.
+  debug_files = [('dbghelp.dll', False), ('dbgcore.dll', True)]
+  for debug_file, is_optional in debug_files:
+    full_path = os.path.join(win_sdk_dir, 'Debuggers', target_cpu, debug_file)
+    if not os.path.exists(full_path):
+      if is_optional:
+        continue
+      else:
+        raise Exception('%s not found in "%s"\r\nYou must install the '
+                        '"Debugging Tools for Windows" feature from the Windows'
+                        ' 10 SDK.' % (debug_file, full_path))
+    target_path = os.path.join(target_dir, debug_file)
+    _CopyRuntimeImpl(target_path, full_path)
 
 
 def _GetDesiredVsToolchainHashes():
   """Load a list of SHA1s corresponding to the toolchains that we want installed
   to build with."""
-  if GetVisualStudioVersion() == '2015':
-    # Update 1 with hot fixes.
-    return ['b349b3cc596d5f7e13d649532ddd7e8db39db0cb']
-  else:
-    # Default to VS2013.
-    return ['4087e065abebdca6dbd0caca2910c6718d2ec67f']
+  env_version = GetVisualStudioVersion()
+  if env_version == '2015':
+    # Update 3 final with 10.0.15063.468 SDK and no vctip.exe.
+    return ['f53e4598951162bad6330f7a167486c7ae5db1e5']
+  if env_version == '2017':
+    # VS 2017 Update 3.2 with 10.0.15063.468 SDK.
+    return ['9bc7ccbf9f4bd50d4a3bd185e8ca94ff1618de0b']
+  raise Exception('Unsupported VS version %s' % env_version)
 
 
 def ShouldUpdateToolchain():
@@ -315,6 +389,9 @@ def Update(force=False):
         depot_tools_win_toolchain):
     import find_depot_tools
     depot_tools_path = find_depot_tools.add_depot_tools_to_path()
+    # Necessary so that get_toolchain_if_necessary.py will put the VS toolkit
+    # in the correct directory.
+    os.environ['GYP_MSVS_VERSION'] = GetVisualStudioVersion()
     get_toolchain_args = [
         sys.executable,
         os.path.join(depot_tools_path,
@@ -329,10 +406,16 @@ def Update(force=False):
   return 0
 
 
-def GetToolchainDir():
-  """Gets location information about the current toolchain (must have been
+def NormalizePath(path):
+  while path.endswith("\\"):
+    path = path[:-1]
+  return path
+
+
+def SetEnvironmentAndGetSDKDir():
+  """Gets location information about the current sdk (must have been
   previously updated by 'update'). This is used for the GN build."""
-  runtime_dll_dirs = SetEnvironmentAndGetRuntimeDllDirs()
+  SetEnvironmentAndGetRuntimeDllDirs()
 
   # If WINDOWSSDKDIR is not set, search the default SDK path and set it.
   if not 'WINDOWSSDKDIR' in os.environ:
@@ -340,16 +423,25 @@ def GetToolchainDir():
     if os.path.isdir(default_sdk_path):
       os.environ['WINDOWSSDKDIR'] = default_sdk_path
 
+  return NormalizePath(os.environ['WINDOWSSDKDIR'])
+
+
+def GetToolchainDir():
+  """Gets location information about the current toolchain (must have been
+  previously updated by 'update'). This is used for the GN build."""
+  runtime_dll_dirs = SetEnvironmentAndGetRuntimeDllDirs()
+  win_sdk_dir = SetEnvironmentAndGetSDKDir()
+
   print '''vs_path = "%s"
 sdk_path = "%s"
 vs_version = "%s"
 wdk_dir = "%s"
 runtime_dirs = "%s"
 ''' % (
-      os.environ['GYP_MSVS_OVERRIDE_PATH'],
-      os.environ['WINDOWSSDKDIR'],
+      NormalizePath(os.environ['GYP_MSVS_OVERRIDE_PATH']),
+      win_sdk_dir,
       GetVisualStudioVersion(),
-      os.environ.get('WDK_DIR', ''),
+      NormalizePath(os.environ.get('WDK_DIR', '')),
       os.path.pathsep.join(runtime_dll_dirs or ['None']))
 
 
