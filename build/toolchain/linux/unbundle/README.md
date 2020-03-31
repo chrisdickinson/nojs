@@ -16,8 +16,8 @@ for some examples. This is not an exhaustive list.
  - https://fedoraproject.org/wiki/Changes/Harden_All_Packages
  - https://fedoraproject.org/wiki/Changes/Modernise_GCC_Flags
  - https://fedoraproject.org/wiki/Packaging:Guidelines#Compiler_flags
- - https://blog.flameeyes.eu/2010/09/are-we-done-with-ldflags/
- - https://blog.flameeyes.eu/2008/08/flags-and-flags/
+ - https://flameeyes.blog/2010/09/09/are-we-done-with-ldflags/
+ - https://flameeyes.blog/2008/08/06/flags-and-flags/
 
 # Usage
 
